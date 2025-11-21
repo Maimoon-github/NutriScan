@@ -10,6 +10,7 @@ For the full list of settings and their values, see
 https://docs.djangoproject.com/en/5.2/ref/settings/
 """
 
+import os
 from pathlib import Path
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
@@ -190,3 +191,113 @@ FILE_UPLOAD_MAX_MEMORY_SIZE = 10485760  # 10MB in bytes
 
 # Allowed image formats
 ALLOWED_IMAGE_EXTENSIONS = ['.jpg', '.jpeg', '.png', '.webp']
+
+# =======================================
+# AI MODEL CONFIGURATION (Phase 2)
+# =======================================
+
+# OCR Settings
+OCR_CONFIG = {
+    'USE_GPU': False,  # Set to True if CUDA is available
+    'CONFIDENCE_THRESHOLD': 0.5,  # Minimum confidence for text extraction (0.0-1.0)
+    'ENABLE_TABLE_RECOGNITION': True,  # Enable nutrition table detection
+    'SUPPORTED_LANGUAGES': ['en', 'ur'],  # English and Urdu
+}
+
+# LLM Settings (Ollama)
+LLM_CONFIG = {
+    'MODEL_NAME': 'qwen2.5:7b-instruct-q4_K_M',  # Qwen 2.5 7B quantized
+    'BASE_URL': 'http://localhost:11434',  # Ollama server endpoint
+    'TEMPERATURE': 0.3,  # Lower = more deterministic, Higher = more creative (0.0-1.0)
+    'TIMEOUT': 60,  # Request timeout in seconds
+    'MAX_TOKENS': 2048,  # Maximum response tokens
+    'CONTEXT_WINDOW': 32768,  # Qwen 2.5 context window
+}
+
+# Vector Database Settings (Pinecone)
+VECTOR_DB_CONFIG = {
+    'PROVIDER': 'pinecone',  # Options: 'pinecone', 'chromadb'
+    'PINECONE_API_KEY': os.getenv('PINECONE_API_KEY', ''),  # From environment variable
+    'PINECONE_ENVIRONMENT': os.getenv('PINECONE_ENVIRONMENT', 'us-east-1'),
+    'INDEX_NAME': 'nutriscan-regulations',
+    'EMBEDDING_MODEL': 'all-MiniLM-L6-v2',  # SentenceTransformer model
+    'EMBEDDING_DIMENSION': 384,
+    'TOP_K_RESULTS': 5,  # Number of documents to retrieve for RAG
+}
+
+# Performance Thresholds
+PERFORMANCE_CONFIG = {
+    'TARGET_LATENCY_SECONDS': 4.0,  # Target: <4s per README spec
+    'OCR_TARGET_ACCURACY': 0.95,  # Target: >95% accuracy
+    'MAX_IMAGE_SIZE_MB': 10,
+    'ENABLE_PERFORMANCE_LOGGING': True,
+}
+
+# Fallback Settings
+FALLBACK_CONFIG = {
+    'USE_MOCK_ON_ERROR': True,  # Return mock data if AI services fail
+    'ENABLE_RETRY': True,
+    'MAX_RETRIES': 2,
+    'RETRY_DELAY_SECONDS': 1,
+}
+
+# Regulatory Database Sources
+REGULATORY_SOURCES = {
+    'Global': [
+        {'name': 'WHO', 'url': 'https://www.who.int/nutrition/guidelines'},
+        {'name': 'Codex Alimentarius', 'url': 'http://www.fao.org/fao-who-codexalimentarius'},
+    ],
+    'PK-Punjab': [
+        {'name': 'Punjab Food Authority', 'url': 'https://pfa.gop.pk/'},
+        {'name': 'PSQCA', 'url': 'https://psqca.com.pk/'},
+    ],
+    'US': [
+        {'name': 'FDA', 'url': 'https://www.fda.gov/'},
+    ],
+}
+
+# Infant Safety Rules (Critical for Phase 2)
+INFANT_SAFETY_CONFIG = {
+    'AGE_THRESHOLD_MONTHS': 12,  # Strict rules apply for <12 months
+    'BANNED_INGREDIENTS': [
+        'honey', 'added salt', 'added sugar', 'artificial sweetener',
+        'sodium benzoate', 'sulfites', 'nitrates', 'nitrites'
+    ],
+    'ZERO_TOLERANCE': True,  # Flag as hazardous if any banned ingredient found
+}
+
+# Logging Configuration for AI Components
+LOGGING = {
+    'version': 1,
+    'disable_existing_loggers': False,
+    'formatters': {
+        'verbose': {
+            'format': '{levelname} {asctime} {module} {message}',
+            'style': '{',
+        },
+    },
+    'handlers': {
+        'console': {
+            'class': 'logging.StreamHandler',
+            'formatter': 'verbose',
+        },
+        'file': {
+            'class': 'logging.FileHandler',
+            'filename': BASE_DIR / 'logs' / 'nutriscan.log',
+            'formatter': 'verbose',
+        },
+    },
+    'loggers': {
+        'analyzer.services': {
+            'handlers': ['console', 'file'],
+            'level': 'INFO',
+            'propagate': False,
+        },
+    },
+}
+
+# Create logs directory if it doesn't exist
+import os
+LOGS_DIR = BASE_DIR / 'logs'
+if not os.path.exists(LOGS_DIR):
+    os.makedirs(LOGS_DIR)
