@@ -33,13 +33,24 @@ def test_scan_endpoint():
     """Test the /scan/ endpoint with mock data"""
     print("\n🔍 Testing /api/v1/scan/ endpoint...")
     
-    # Create a simple test image (1x1 pixel PNG)
-    test_image_data = (
-        b'\x89PNG\r\n\x1a\n\x00\x00\x00\rIHDR\x00\x00\x00\x01\x00\x00'
-        b'\x00\x01\x08\x02\x00\x00\x00\x90wS\xde\x00\x00\x00\x0cIDAT'
-        b'\x08\xd7c\xf8\xcf\xc0\x00\x00\x00\x03\x00\x01\x00\x18\xdd'
-        b'\x8d\xb4\x00\x00\x00\x00IEND\xaeB`\x82'
-    )
+    # Create a valid 1x1 pixel PNG image
+    from io import BytesIO
+    try:
+        from PIL import Image
+        
+        # Create a simple 1x1 red pixel image
+        img = Image.new('RGB', (1, 1), color='red')
+        img_bytes = BytesIO()
+        img.save(img_bytes, format='PNG')
+        test_image_data = img_bytes.getvalue()
+    except ImportError:
+        # Fallback: Use a properly formatted minimal PNG
+        test_image_data = (
+            b'\x89PNG\r\n\x1a\n\x00\x00\x00\rIHDR\x00\x00\x00\x01\x00\x00'
+            b'\x00\x01\x08\x02\x00\x00\x00\x90wS\xde\x00\x00\x00\x0cIDAT'
+            b'\x08\x99c\xf8\x0f\x00\x00\x01\x01\x00\x01\x18\xdd\x8d\xb4'
+            b'\x00\x00\x00\x00IEND\xaeB`\x82'
+        )
     
     files = {
         'image': ('test_label.png', test_image_data, 'image/png')
