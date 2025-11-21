@@ -1,0 +1,138 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "NutriScan Analysis Response",
+  "description": "Schema for the analysis result returned by the backend agent to the mobile app.",
+  "type": "object",
+  "required": [
+    "scan_id",
+    "timestamp",
+    "status",
+    "health_impact_summary",
+    "parsed_ingredients"
+  ],
+  "properties": {
+    "scan_id": {
+      "type": "string",
+      "format": "uuid",
+      "description": "Unique identifier for this specific scan event."
+    },
+    "timestamp": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "status": {
+      "type": "string",
+      "enum": ["success", "partial_ocr_failure", "unreadable"],
+      "description": "The technical success state of the processing pipeline."
+    },
+    "user_context_used": {
+      "type": "object",
+      "properties": {
+        "age_months": { "type": ["integer", "null"] },
+        "dietary_restrictions": { "type": "array", "items": { "type": "string" } },
+        "region": { "type": "string", "example": "PK-Punjab" }
+      }
+    },
+    "ocr_raw_text": {
+      "type": "string",
+      "description": "The raw text extracted from the image for debugging/user correction."
+    },
+    "parsed_ingredients": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["name", "risk_level"],
+        "properties": {
+          "name": { "type": "string", "description": "Canonical name (e.g., 'Salt' instead of 'Sodium Chloride')" },
+          "original_text": { "type": "string" },
+          "category": { 
+            "type": "string", 
+            "enum": ["core_ingredient", "additive", "preservative", "sweetener", "colorant", "unknown"] 
+          },
+          "risk_level": { 
+            "type": "string", 
+            "enum": ["safe", "caution", "avoid", "unknown"] 
+          },
+          "description": { "type": "string", "description": "Short explanation of what this is." }
+        }
+      }
+    },
+    "nutrition_facts": {
+      "type": "object",
+      "properties": {
+        "serving_size": { "type": "string" },
+        "calories": { "type": "number" },
+        "sugar_g": { "type": "number" },
+        "sodium_mg": { "type": "number" },
+        "fat_g": { "type": "number" }
+      }
+    },
+    "allergen_alerts": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["substance", "severity", "evidence"],
+        "properties": {
+          "substance": { "type": "string", "example": "Milk" },
+          "severity": { "type": "string", "enum": ["high", "medium", "low"] },
+          "evidence": { "type": "string", "description": "Snippet from text triggering this alert (e.g., 'Contains Casein')." }
+        }
+      }
+    },
+    "dietary_compliance": {
+      "type": "object",
+      "properties": {
+        "is_halal": { "type": "boolean" },
+        "is_vegan": { "type": "boolean" },
+        "is_infant_safe": { "type": "boolean" },
+        "flags": {
+          "type": "array",
+          "items": { "type": "string", "example": "Contains Gelatin (E441)" }
+        }
+      }
+    },
+    "health_impact_summary": {
+      "type": "object",
+      "required": ["verdict", "short_summary", "detailed_analysis"],
+      "properties": {
+        "verdict": { 
+          "type": "string", 
+          "enum": ["excellent", "good", "fair", "poor", "hazardous"],
+          "description": "Overall score for the traffic light UI."
+        },
+        "short_summary": { 
+          "type": "string", 
+          "maxLength": 150,
+          "description": "1-2 sentences for the top of the screen."
+        },
+        "detailed_analysis": { 
+          "type": "string", 
+          "format": "markdown",
+          "description": "Full analysis citing sources."
+        }
+      }
+    },
+    "suggestions": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "type": { "type": "string", "enum": ["swap", "usage_tip"] },
+          "product_name": { "type": "string" },
+          "reason": { "type": "string" }
+        }
+      }
+    },
+    "sources": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "authority": { "type": "string", "example": "Punjab Food Authority" },
+          "doc_id": { "type": "string" },
+          "url": { "type": "string" }
+        }
+      }
+    }
+  }
+}
