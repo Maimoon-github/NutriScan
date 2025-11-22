@@ -8,14 +8,14 @@ paddleocr==2.7.3              # Production OCR engine (Urdu/English support)
 paddlepaddle==2.6.2           # PaddlePaddle deep learning framework (updated)
 
 # LLM & AI Integration (Phase 2)
-langchain==0.1.0              # LLM orchestration framework
-langchain-community==0.0.12   # Community integrations
+langchain>=0.3.19             # LLM orchestration framework (updated for compatibility)
+langchain-community>=0.3.18   # Community integrations (matched version)
 ollama==0.1.6                 # Ollama Python SDK for Qwen 2.5 7B
 
 # Vector Database for RAG
 pinecone-client==3.0.0        # Vector database for regulatory documents
-sentence-transformers==2.3.1  # Text embeddings for semantic search
-chromadb==0.4.22              # Alternative local vector DB
+# sentence-transformers==2.3.1  # Text embeddings for semantic search (DISABLED - causes PyTorch DLL issues on Windows)
+# chromadb==0.4.22              # Alternative local vector DB (DISABLED - not currently used)
 
 # Text Processing & NLP
 spacy==3.7.2                  # Named Entity Recognition

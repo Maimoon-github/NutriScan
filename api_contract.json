@@ -1,0 +1,559 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "NutriScan Analysis Response",
+  "version": "1.0.0",
+  "description": "LOCKED API contract for /api/v1/scan/ endpoint. This schema is frozen for frontend development. Any breaking changes require version increment.",
+  "type": "object",
+  "required": [
+    "scan_id",
+    "timestamp",
+    "status",
+    "health_impact_summary",
+    "parsed_ingredients",
+    "ocr_raw_text",
+    "allergen_alerts",
+    "user_context_used"
+  ],
+  "properties": {
+    "scan_id": {
+      "type": "string",
+      "format": "uuid",
+      "description": "Unique identifier for this specific scan event."
+    },
+    "timestamp": {
+      "type": "string",
+      "format": "date-time",
+      "description": "ISO 8601 timestamp of when the scan was processed."
+    },
+    "status": {
+      "type": "string",
+      "enum": ["success", "partial_ocr_failure", "unreadable"],
+      "description": "Pipeline processing status: success (full extraction), partial_ocr_failure (low confidence OCR), unreadable (failed OCR)."
+    },
+    "user_context_used": {
+      "type": "object",
+      "description": "Echo of the user profile used for personalized analysis.",
+      "properties": {
+        "age_months": { 
+          "type": ["integer", "null"],
+          "description": "User age in months. Null if not provided. Used for infant safety checks."
+        },
+        "dietary_restrictions": { 
+          "type": "array", 
+          "items": { "type": "string" },
+          "description": "List of dietary restrictions (e.g., ['vegan', 'halal', 'gluten-free'])."
+        },
+        "region": { 
+          "type": "string", 
+          "description": "User's region for regulatory compliance (e.g., 'PK-Punjab', 'PK-Sindh')."
+        }
+      }
+    },
+    "ocr_raw_text": {
+      "type": "string",
+      "description": "Raw text extracted from the label via OCR. Used for debugging and user correction."
+    },
+    "ocr_confidence": {
+      "type": "number",
+      "minimum": 0,
+      "maximum": 1,
+      "description": "OCR confidence score (0-1). Values < 0.6 trigger partial_ocr_failure status."
+    },
+    "parsed_ingredients": {
+      "type": "array",
+      "description": "Structured list of ingredients identified from the label.",
+      "items": {
+        "type": "object",
+        "required": ["name", "category", "risk_level"],
+        "properties": {
+          "name": { 
+            "type": "string", 
+            "description": "Canonical ingredient name (e.g., 'Salt' instead of 'Sodium Chloride')."
+          },
+          "original_text": { 
+            "type": "string",
+            "description": "Original text from label before normalization."
+          },
+          "category": { 
+            "type": "string", 
+            "enum": ["core_ingredient", "additive", "preservative", "sweetener", "colorant", "unknown"],
+            "description": "Ingredient classification for UI grouping."
+          },
+          "risk_level": { 
+            "type": "string", 
+            "enum": ["safe", "caution", "avoid", "unknown"],
+            "description": "Safety assessment: safe (green), caution (yellow), avoid (red), unknown (gray)."
+          },
+          "description": { 
+            "type": "string",
+            "description": "Plain-language explanation of the ingredient and its purpose."
+          }
+        }
+      }
+    },
+    "nutrition_facts": {
+      "type": "object",
+      "description": "Nutrition information per serving. Optional if not present on label.",
+      "properties": {
+        "serving_size": { "type": "string", "description": "e.g., '100g', '1 cup'" },
+        "calories": { "type": ["number", "null"] },
+        "sugar_g": { "type": ["number", "null"] },
+        "sodium_mg": { "type": ["number", "null"] },
+        "fat_g": { "type": ["number", "null"] }
+      }
+    },
+    "allergen_alerts": {
+      "type": "array",
+      "description": "List of detected allergens with severity. Always present (empty array if none).",
+      "items": {
+        "type": "object",
+        "required": ["substance", "severity", "evidence"],
+        "properties": {
+          "substance": { 
+            "type": "string",
+            "description": "Common allergen name (e.g., 'Milk', 'Peanuts', 'Soy')."
+          },
+          "severity": { 
+            "type": "string", 
+            "enum": ["high", "medium", "low"],
+            "description": "Alert priority: high (bold red), medium (orange), low (yellow)."
+          },
+          "evidence": { 
+            "type": "string",
+            "description": "Quote from label triggering this alert (e.g., 'Contains Casein')."
+          }
+        }
+      }
+    },
+    "dietary_compliance": {
+      "type": "object",
+      "description": "Compliance flags for dietary restrictions. Optional if not analyzed.",
+      "properties": {
+        "is_halal": { 
+          "type": ["boolean", "null"],
+          "description": "True if compliant, false if not, null if uncertain."
+        },
+        "is_vegan": { 
+          "type": ["boolean", "null"] 
+        },
+        "is_infant_safe": { 
+          "type": ["boolean", "null"],
+          "description": "Safe for infants < 12 months (e.g., no honey, low sugar)."
+        },
+        "flags": {
+          "type": "array",
+          "items": { "type": "string" },
+          "description": "Human-readable compliance notes (e.g., 'Contains Gelatin (E441)')."
+        }
+      }
+    },
+    "health_impact_summary": {
+      "type": "object",
+      "required": ["verdict", "short_summary", "detailed_analysis"],
+      "description": "Overall health assessment with traffic light verdict.",
+      "properties": {
+        "verdict": { 
+          "type": "string", 
+          "enum": ["excellent", "good", "fair", "poor", "hazardous"],
+          "description": "Traffic light mapping: excellent/good=green, fair=yellow, poor/hazardous=red."
+        },
+        "short_summary": { 
+          "type": "string", 
+          "maxLength": 150,
+          "description": "1-2 sentence summary for header display."
+        },
+        "detailed_analysis": { 
+          "type": "string",
+          "description": "Full markdown-formatted analysis with regulatory citations."
+        }
+      }
+    },
+    "traffic_light": {
+      "type": "string",
+      "enum": ["green", "yellow", "red"],
+      "description": "UI traffic light color derived from verdict. Maps: excellent/good→green, fair→yellow, poor/hazardous→red."
+    },
+    "why": {
+      "type": "string",
+      "description": "Plain-language explanation of the verdict. Combines short_summary and key risk factors."
+    },
+    "citations": {
+      "type": "array",
+      "description": "Regulatory sources cited in the analysis. Maps to 'sources' field.",
+      "items": {
+        "type": "object",
+        "required": ["authority"],
+        "properties": {
+          "authority": { 
+            "type": "string",
+            "description": "Regulatory body name (e.g., 'Punjab Food Authority')."
+          },
+          "doc_id": { 
+            "type": "string",
+            "description": "Document reference ID."
+          },
+          "url": { 
+            "type": "string",
+            "description": "Link to source document."
+          },
+          "excerpt": {
+            "type": "string",
+            "description": "Relevant quote from the regulation."
+          }
+        }
+      }
+    },
+    "better_swaps": {
+      "type": "array",
+      "description": "Alternative product suggestions. Maps to 'suggestions' with type='swap'.",
+      "items": {
+        "type": "object",
+        "required": ["product_name", "reason"],
+        "properties": {
+          "product_name": { 
+            "type": "string",
+            "description": "Name of recommended alternative product."
+          },
+          "reason": { 
+            "type": "string",
+            "description": "Why this alternative is better (e.g., 'Lower sodium', 'No artificial colors')."
+          },
+          "price_hint": {
+            "type": "string",
+            "description": "Optional price comparison (e.g., 'Similar price', '+20% cost')."
+          }
+        }
+      }
+    },
+    "suggestions": {
+      "type": "array",
+      "description": "Usage tips and product swaps. Includes both better_swaps and general tips.",
+      "items": {
+        "type": "object",
+        "required": ["type", "reason"],
+        "properties": {
+          "type": { 
+            "type": "string", 
+            "enum": ["swap", "usage_tip"],
+            "description": "swap = alternative product, usage_tip = how to consume safely."
+          },
+          "product_name": { 
+            "type": "string",
+            "description": "Required for type=swap, omitted for usage_tip."
+          },
+          "reason": { 
+            "type": "string",
+            "description": "Explanation for the suggestion."
+          }
+        }
+      }
+    },
+    "sources": {
+      "type": "array",
+      "description": "Regulatory sources from RAG retrieval. Same as 'citations'.",
+      "items": {
+        "type": "object",
+        "required": ["authority"],
+        "properties": {
+          "authority": { "type": "string" },
+          "doc_id": { "type": "string" },
+          "url": { "type": "string" }
+        }
+      }
+    },
+    "latency_ms": {
+      "type": "integer",
+      "description": "Total processing time in milliseconds. For performance monitoring."
+    },
+    "regulatory_flags": {
+      "type": "array",
+      "description": "List of regulatory violations or warnings.",
+      "items": {
+        "type": "object",
+        "properties": {
+          "regulation": { "type": "string", "description": "Name of violated regulation." },
+          "severity": { "type": "string", "enum": ["violation", "warning", "info"] },
+          "description": { "type": "string" }
+        }
+      }
+    }
+  },
+  "examples": [
+    {
+      "example_name": "Successful Scan - Healthy Product",
+      "description": "Complete OCR extraction with high confidence, product passes all checks.",
+      "data": {
+        "scan_id": "a1b2c3d4-e5f6-7890-abcd-ef1234567890",
+        "timestamp": "2025-11-22T14:30:00Z",
+        "status": "success",
+        "user_context_used": {
+          "age_months": null,
+          "dietary_restrictions": ["vegan"],
+          "region": "PK-Punjab"
+        },
+        "ocr_raw_text": "Organic Oat Milk\nINGREDIENTS: Water, Organic Oats (14%), Sunflower Oil, Sea Salt\nNUTRITION FACTS (per 100ml): Calories 45, Sugar 4g, Sodium 100mg, Fat 1.5g",
+        "ocr_confidence": 0.92,
+        "parsed_ingredients": [
+          {
+            "name": "Water",
+            "original_text": "Water",
+            "category": "core_ingredient",
+            "risk_level": "safe",
+            "description": "Primary ingredient, essential for hydration."
+          },
+          {
+            "name": "Organic Oats",
+            "original_text": "Organic Oats (14%)",
+            "category": "core_ingredient",
+            "risk_level": "safe",
+            "description": "Whole grain, high in fiber and nutrients."
+          },
+          {
+            "name": "Sunflower Oil",
+            "original_text": "Sunflower Oil",
+            "category": "core_ingredient",
+            "risk_level": "safe",
+            "description": "Plant-based oil for texture."
+          },
+          {
+            "name": "Sea Salt",
+            "original_text": "Sea Salt",
+            "category": "core_ingredient",
+            "risk_level": "safe",
+            "description": "Flavor enhancer in minimal quantity."
+          }
+        ],
+        "nutrition_facts": {
+          "serving_size": "100ml",
+          "calories": 45,
+          "sugar_g": 4,
+          "sodium_mg": 100,
+          "fat_g": 1.5
+        },
+        "allergen_alerts": [],
+        "dietary_compliance": {
+          "is_halal": true,
+          "is_vegan": true,
+          "is_infant_safe": true,
+          "flags": []
+        },
+        "health_impact_summary": {
+          "verdict": "excellent",
+          "short_summary": "Clean, plant-based product with minimal processing and no harmful additives.",
+          "detailed_analysis": "This organic oat milk contains only 4 simple ingredients, all recognized as safe by the Punjab Food Authority. Sugar content (4g/100ml) is within acceptable limits for beverages. No artificial preservatives, colors, or allergens detected. Suitable for vegan diets and infant consumption (6+ months)."
+        },
+        "traffic_light": "green",
+        "why": "All ingredients are natural and safe. Low sugar, no harmful additives, and complies with vegan dietary requirements.",
+        "citations": [
+          {
+            "authority": "Punjab Food Authority",
+            "doc_id": "PFA-2022-BeverageStandards",
+            "url": "https://pfa.gop.pk/regulations/beverages",
+            "excerpt": "Plant-based beverages must not exceed 5g sugar per 100ml for health compliance."
+          }
+        ],
+        "better_swaps": [],
+        "suggestions": [
+          {
+            "type": "usage_tip",
+            "reason": "Shake well before use as natural separation may occur."
+          }
+        ],
+        "sources": [
+          {
+            "authority": "Punjab Food Authority",
+            "doc_id": "PFA-2022-BeverageStandards",
+            "url": "https://pfa.gop.pk/regulations/beverages"
+          }
+        ],
+        "latency_ms": 2847,
+        "regulatory_flags": []
+      }
+    },
+    {
+      "example_name": "Partial OCR Failure - Low Confidence",
+      "description": "OCR succeeded but with low confidence due to poor image quality or complex label design.",
+      "data": {
+        "scan_id": "b2c3d4e5-f6a7-8901-bcde-f12345678901",
+        "timestamp": "2025-11-22T15:45:00Z",
+        "status": "partial_ocr_failure",
+        "user_context_used": {
+          "age_months": 8,
+          "dietary_restrictions": [],
+          "region": "PK-Sindh"
+        },
+        "ocr_raw_text": "Cho...late Cookies\nINGREDIENTS: Wheat Fl..r, Sugar, Palm Oil, Co...a Powder (5%), Leci... (E322), Vanilla Flavor\nNUTRI...ON: Ca...ies 480, Sugar 28g, ..dium 150mg",
+        "ocr_confidence": 0.54,
+        "parsed_ingredients": [
+          {
+            "name": "Wheat Flour",
+            "original_text": "Wheat Fl..r",
+            "category": "core_ingredient",
+            "risk_level": "caution",
+            "description": "Refined flour, may contain gluten allergen."
+          },
+          {
+            "name": "Sugar",
+            "original_text": "Sugar",
+            "category": "sweetener",
+            "risk_level": "caution",
+            "description": "High sugar content may pose health risks."
+          },
+          {
+            "name": "Palm Oil",
+            "original_text": "Palm Oil",
+            "category": "core_ingredient",
+            "risk_level": "caution",
+            "description": "Saturated fat source, consume in moderation."
+          },
+          {
+            "name": "Cocoa Powder",
+            "original_text": "Co...a Powder (5%)",
+            "category": "core_ingredient",
+            "risk_level": "safe",
+            "description": "Natural cocoa for flavor."
+          },
+          {
+            "name": "Lecithin (E322)",
+            "original_text": "Leci... (E322)",
+            "category": "additive",
+            "risk_level": "safe",
+            "description": "Emulsifier, generally recognized as safe."
+          },
+          {
+            "name": "Vanilla Flavor",
+            "original_text": "Vanilla Flavor",
+            "category": "unknown",
+            "risk_level": "unknown",
+            "description": "Flavor source not specified (natural or artificial)."
+          }
+        ],
+        "nutrition_facts": {
+          "serving_size": "100g",
+          "calories": 480,
+          "sugar_g": 28,
+          "sodium_mg": 150,
+          "fat_g": null
+        },
+        "allergen_alerts": [
+          {
+            "substance": "Wheat (Gluten)",
+            "severity": "high",
+            "evidence": "Contains Wheat Flour"
+          }
+        ],
+        "dietary_compliance": {
+          "is_halal": null,
+          "is_vegan": false,
+          "is_infant_safe": false,
+          "flags": ["High sugar content unsuitable for infants", "May contain milk derivatives (lecithin source unclear)"]
+        },
+        "health_impact_summary": {
+          "verdict": "poor",
+          "short_summary": "High sugar and saturated fat content. Not recommended for infants under 12 months.",
+          "detailed_analysis": "⚠️ **OCR Quality Warning**: Text extraction was incomplete. Please verify ingredients manually.\n\nThis product contains 28g sugar per 100g (28% by weight), exceeding WHO recommendations for children. Palm oil contributes saturated fats. For an 8-month-old infant, this product poses risks: excessive sugar can lead to early obesity and dental issues. Wheat allergen detected."
+        },
+        "traffic_light": "red",
+        "why": "Very high sugar content (28g/100g) and saturated fats. Contains gluten allergen. Unsuitable for infants due to sugar and potential choking hazards.",
+        "citations": [
+          {
+            "authority": "WHO",
+            "doc_id": "WHO-2015-SugarGuidelines",
+            "url": "https://www.who.int/publications/guidelines/sugars_intake",
+            "excerpt": "Free sugars should be less than 10% of total energy intake for children."
+          },
+          {
+            "authority": "Pakistan Pediatric Association",
+            "doc_id": "PPA-InfantNutrition-2023",
+            "url": null,
+            "excerpt": "Avoid added sugars in foods for infants under 12 months."
+          }
+        ],
+        "better_swaps": [
+          {
+            "product_name": "Organic Rice Crackers",
+            "reason": "Lower sugar (5g/100g), no allergens, infant-safe texture.",
+            "price_hint": "Similar price"
+          },
+          {
+            "product_name": "Banana Oat Cookies (Homemade)",
+            "reason": "No added sugar, uses natural banana sweetness.",
+            "price_hint": "Homemade option"
+          }
+        ],
+        "suggestions": [
+          {
+            "type": "swap",
+            "product_name": "Organic Rice Crackers",
+            "reason": "Lower sugar, no allergens, infant-safe texture."
+          },
+          {
+            "type": "usage_tip",
+            "reason": "If consuming, limit portion to 1-2 cookies and pair with fruit to balance sugar intake."
+          }
+        ],
+        "sources": [
+          {
+            "authority": "WHO",
+            "doc_id": "WHO-2015-SugarGuidelines",
+            "url": "https://www.who.int/publications/guidelines/sugars_intake"
+          },
+          {
+            "authority": "Pakistan Pediatric Association",
+            "doc_id": "PPA-InfantNutrition-2023"
+          }
+        ],
+        "latency_ms": 3421,
+        "regulatory_flags": [
+          {
+            "regulation": "PFA Infant Food Regulation 2018",
+            "severity": "warning",
+            "description": "Sugar content exceeds recommended limits for infant products."
+          }
+        ]
+      }
+    },
+    {
+      "example_name": "Unreadable Scan - OCR Failure",
+      "description": "OCR completely failed due to blur, poor lighting, or non-supported language/format.",
+      "data": {
+        "scan_id": "c3d4e5f6-a7b8-9012-cdef-123456789012",
+        "timestamp": "2025-11-22T16:20:00Z",
+        "status": "unreadable",
+        "user_context_used": {
+          "age_months": null,
+          "dietary_restrictions": ["halal"],
+          "region": "PK-KPK"
+        },
+        "ocr_raw_text": "",
+        "ocr_confidence": 0.12,
+        "parsed_ingredients": [],
+        "nutrition_facts": null,
+        "allergen_alerts": [],
+        "dietary_compliance": null,
+        "health_impact_summary": {
+          "verdict": "hazardous",
+          "short_summary": "Unable to analyze product due to poor image quality. Cannot verify safety.",
+          "detailed_analysis": "**Analysis Failed**: The label could not be read. This may be due to:\n- Blurry or low-resolution image\n- Poor lighting conditions\n- Label text too small or damaged\n- Non-English/Urdu script not yet supported\n\n**Action Required**: Please retake the photo with better lighting and focus, ensuring the ingredients list is clearly visible."
+        },
+        "traffic_light": "red",
+        "why": "Cannot verify product safety. No ingredient information extracted.",
+        "citations": [],
+        "better_swaps": [],
+        "suggestions": [
+          {
+            "type": "usage_tip",
+            "reason": "Retake photo in good lighting with the ingredients list in focus. Ensure label is flat and unobstructed."
+          },
+          {
+            "type": "usage_tip",
+            "reason": "Try cleaning the camera lens and holding the phone steady while capturing."
+          }
+        ],
+        "sources": [],
+        "latency_ms": 1523,
+        "regulatory_flags": []
+      }
+    }
+  ]
+}

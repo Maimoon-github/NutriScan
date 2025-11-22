@@ -18,19 +18,34 @@ from datetime import datetime
 from typing import Dict, List, Optional
 import time
 
+# Disable tokenizers parallelism warning and optional transformers dependency
+os.environ["TOKENIZERS_PARALLELISM"] = "false"
+os.environ["TRANSFORMERS_OFFLINE"] = "1"
+
 # Import production OCR service
 from .ocr import OCRService
 
-# LangChain imports for LLM orchestration
-try:
-    from langchain.llms import Ollama
-    from langchain.prompts import PromptTemplate
-    from langchain.chains import LLMChain
-    from langchain.callbacks.manager import CallbackManager
-    from langchain.callbacks.streaming_stdout import StreamingStdOutCallbackHandler
-except ImportError:
-    Ollama = None
-    logging.warning("LangChain not installed. Install with: pip install langchain langchain-community")
+# LangChain imports for LLM orchestration - defer to avoid heavy imports at module load
+Ollama = None
+PromptTemplate = None
+LLMChain = None
+
+def _import_langchain():
+    """Lazy import of LangChain to avoid loading heavy dependencies at module load time."""
+    global Ollama, PromptTemplate, LLMChain
+    if Ollama is not None:
+        return True
+    try:
+        from langchain_community.llms import Ollama as _Ollama
+        from langchain.prompts import PromptTemplate as _PromptTemplate
+        from langchain.chains import LLMChain as _LLMChain
+        Ollama = _Ollama
+        PromptTemplate = _PromptTemplate
+        LLMChain = _LLMChain
+        return True
+    except Exception as e:
+        logging.warning(f"LangChain not available: {e}. Using mock mode.")
+        return False
 
 # Pinecone for vector database
 try:
@@ -254,7 +269,10 @@ class LLMAgent:
         self.model_name = model_name
         self.temperature = temperature
         
-        if Ollama is None:
+        # Try to import LangChain components
+        langchain_available = _import_langchain()
+        
+        if not langchain_available or Ollama is None:
             logger.warning("LangChain/Ollama not available, using mock mode")
             self.llm = None
             self.use_mock = True
@@ -279,9 +297,10 @@ class LLMAgent:
                 self.use_mock = True
         
         # Define prompt template for health analysis
-        self.analysis_prompt = PromptTemplate(
-            input_variables=["ocr_text", "user_age_months", "dietary_restrictions", "regulations"],
-            template="""You are a food safety expert analyzing a product label for health impact.
+        if PromptTemplate is not None:
+            self.analysis_prompt = PromptTemplate(
+                input_variables=["ocr_text", "user_age_months", "dietary_restrictions", "regulations"],
+                template="""You are a food safety expert analyzing a product label for health impact.
 
 PRODUCT LABEL TEXT:
 {ocr_text}
@@ -316,7 +335,10 @@ CRITICAL RULES:
 4. Check for artificial additives and provide E-codes where applicable
 
 Respond ONLY with valid JSON, no additional text."""
-        )
+            )
+        else:
+            self.analysis_prompt = None
+            logger.warning("PromptTemplate not available, using mock mode")
     
     def generate_analysis(
         self, 
@@ -564,6 +586,48 @@ class NutriScanPipeline:
             suggestions = self._generate_suggestions(analysis, user_profile)
             
             # Step 8: Construct final response
+            total_time_ms = int((time.time() - start_time) * 1000)
+            
+            # Map verdict to traffic light color
+            verdict_to_traffic_light = {
+                "excellent": "green",
+                "good": "green",
+                "fair": "yellow",
+                "poor": "red",
+                "hazardous": "red"
+            }
+            traffic_light = verdict_to_traffic_light.get(analysis["verdict"], "yellow")
+            
+            # Generate "why" explanation
+            why_text = f"{analysis['summary']} "
+            if parsed_ingredients:
+                risk_ingredients = [ing["name"] for ing in parsed_ingredients if ing["risk_level"] in ["avoid", "caution"]]
+                if risk_ingredients:
+                    why_text += f"Contains {', '.join(risk_ingredients[:3])} which require caution."
+            
+            # Separate better_swaps from general suggestions
+            better_swaps = [s for s in suggestions if s.get("type") == "swap"]
+            
+            # Format citations (same as sources but with more detail)
+            citations = [
+                {
+                    "authority": reg["source"],
+                    "doc_id": reg["id"],
+                    "url": reg.get("url", ""),
+                    "excerpt": reg.get("content", "")[:200]  # First 200 chars
+                }
+                for reg in regulations
+            ]
+            
+            # Generate regulatory_flags if needed
+            regulatory_flags = []
+            if analysis["verdict"] in ["poor", "hazardous"]:
+                regulatory_flags.append({
+                    "regulation": "General Food Safety Standards",
+                    "severity": "warning",
+                    "description": "Product contains ingredients that may not meet optimal health standards."
+                })
+            
             response = {
                 "scan_id": str(uuid.uuid4()),
                 "timestamp": datetime.now().isoformat(),
@@ -574,6 +638,7 @@ class NutriScanPipeline:
                     "region": region
                 },
                 "ocr_raw_text": raw_text.strip(),
+                "ocr_confidence": ocr_confidence,
                 "parsed_ingredients": parsed_ingredients,
                 "nutrition_facts": nutrition_facts,
                 "allergen_alerts": analysis["allergens"],
@@ -588,6 +653,10 @@ class NutriScanPipeline:
                     "short_summary": analysis["summary"],
                     "detailed_analysis": analysis["detail"]
                 },
+                "traffic_light": traffic_light,
+                "why": why_text.strip(),
+                "citations": citations,
+                "better_swaps": better_swaps,
                 "suggestions": suggestions,
                 "sources": [
                     {
@@ -596,7 +665,9 @@ class NutriScanPipeline:
                         "url": reg.get("url", "")
                     }
                     for reg in regulations
-                ]
+                ],
+                "latency_ms": total_time_ms,
+                "regulatory_flags": regulatory_flags
             }
             
             # Performance monitoring
@@ -827,21 +898,28 @@ class NutriScanPipeline:
                 "region": "Global"
             },
             "ocr_raw_text": f"Error: {error_message}",
+            "ocr_confidence": 0.0,
             "parsed_ingredients": [],
-            "nutrition_facts": {},
+            "nutrition_facts": None,
             "allergen_alerts": [],
-            "dietary_compliance": {
-                "is_halal": None,
-                "is_vegan": None,
-                "is_infant_safe": None,
-                "flags": []
-            },
+            "dietary_compliance": None,
             "health_impact_summary": {
-                "verdict": "fair",
+                "verdict": "hazardous",
                 "short_summary": "Unable to process image",
-                "detailed_analysis": f"An error occurred during processing: {error_message}"
+                "detailed_analysis": f"An error occurred during processing: {error_message}. Please retake the photo with better lighting and ensure the label is clearly visible."
             },
-            "suggestions": [],
-            "sources": []
+            "traffic_light": "red",
+            "why": "Cannot verify product safety due to processing error.",
+            "citations": [],
+            "better_swaps": [],
+            "suggestions": [
+                {
+                    "type": "usage_tip",
+                    "reason": "Retake photo in good lighting with ingredients list clearly visible"
+                }
+            ],
+            "sources": [],
+            "latency_ms": 0,
+            "regulatory_flags": []
         }
 
