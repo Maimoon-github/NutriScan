@@ -32,7 +32,7 @@ export const ImageUpload = ({ onImageSelect, isUploading }: ImageUploadProps) =>
         <input
           ref={fileInputRef}
           type="file"
-          accept="image/*"
+          accept=".jpg,.jpeg,.png,.webp"
           onChange={handleFileInput}
           className="hidden"
           disabled={isUploading}
@@ -61,7 +61,7 @@ export const ImageUpload = ({ onImageSelect, isUploading }: ImageUploadProps) =>
               </div>
               
               <p className="text-sm text-gray-500">
-                Supported: JPG, PNG, WEBP (max 10MB)
+                Supported: .jpg, .jpeg, .png, .webp • Max size: 10MB
               </p>
             </>
           )}

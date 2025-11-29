@@ -33,7 +33,7 @@ class ScanAnalyzeView(APIView):
         if not input_serializer.is_valid():
             return Response(
                 {
-                    "error": "Invalid input",
+                    "error": "validation_error",
                     "details": input_serializer.errors
                 },
                 status=status.HTTP_400_BAD_REQUEST
@@ -41,7 +41,22 @@ class ScanAnalyzeView(APIView):
         
         # 2. Extract validated data
         image_file = input_serializer.validated_data['image']
-        user_profile = input_serializer.validated_data.get('user_profile', {})
+        # Prefer 'profile' field; fallback to 'user_profile'
+        user_profile = input_serializer.validated_data.get('profile') or input_serializer.validated_data.get('user_profile') or {}
+
+        # Server-side file size enforcement (10MB)
+        try:
+            size_bytes = getattr(image_file, 'size', None)
+            if size_bytes is not None and size_bytes > 10 * 1024 * 1024:
+                return Response(
+                    {
+                        "error": "validation_error",
+                        "details": {"image": ["File size must be ≤ 10MB"]}
+                    },
+                    status=status.HTTP_400_BAD_REQUEST
+                )
+        except Exception:
+            pass
         
         # 3. Process through pipeline
         try:
@@ -65,7 +80,8 @@ class ScanAnalyzeView(APIView):
                 # Internal error - our pipeline returned invalid data
                 return Response(
                     {
-                        "error": "Internal processing error",
+                        "error": "pipeline_error",
+                        "message": "Pipeline returned invalid data",
                         "details": response_serializer.errors
                     },
                     status=status.HTTP_500_INTERNAL_SERVER_ERROR
@@ -75,7 +91,7 @@ class ScanAnalyzeView(APIView):
             # Catch any unexpected errors
             return Response(
                 {
-                    "error": "Processing failed",
+                    "error": "pipeline_error",
                     "message": str(e)
                 },
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR

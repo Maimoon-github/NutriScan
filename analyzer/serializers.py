@@ -117,4 +117,6 @@ class ScanUploadSerializer(serializers.Serializer):
     Defines what the Mobile App sends to us.
     """
     image = serializers.ImageField()
+    # Accept either 'profile' (contract) or legacy 'user_profile'
+    profile = serializers.JSONField(required=False)
     user_profile = serializers.JSONField(required=False)

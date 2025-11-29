@@ -1,7 +1,7 @@
 // API Contract Types - Generated from api_contract.json
 export interface ScanRequest {
-  file: File;
-  user_profile?: UserProfile;
+  image: File;
+  profile?: UserProfile;
 }
 
 export interface UserProfile {
@@ -28,6 +28,10 @@ export interface ScanResponse {
 }
 
 export interface TrafficLight {
+  // Contract uses direct traffic_light color string
+  // UI derives label/confidence if needed from other fields
+  // Keeping minimal per contract
+  // If your contract includes structured object, adjust here.
   status: 'green' | 'yellow' | 'red';
   label: string;
   confidence: number;

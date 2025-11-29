@@ -5,12 +5,49 @@ import { AllergenAlerts } from './AllergenAlerts';
 import { WhyAccordion } from './WhyAccordion';
 import { BetterSwapsList } from './BetterSwapsList';
 
+type ApiError = {
+  error: 'validation_error' | 'pipeline_error' | string;
+  details?: Record<string, unknown>;
+  message?: string;
+};
+
 interface ScanResultsProps {
-  result: ScanResponse;
+  result: ScanResponse | ApiError;
   onReset: () => void;
 }
 
 export const ScanResults = ({ result, onReset }: ScanResultsProps) => {
+  // Error handling per contract
+  if ('error' in result) {
+    return (
+      <div className="max-w-3xl mx-auto p-6 space-y-4">
+        <div className="flex items-center justify-between mb-4">
+          <h1 className="text-2xl font-bold text-gray-900">Scan Error</h1>
+          <button
+            onClick={onReset}
+            className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+          >
+            Try Again
+          </button>
+        </div>
+
+        {result.error === 'validation_error' && (
+          <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4">
+            <h3 className="text-yellow-900 font-semibold mb-2">Invalid Upload</h3>
+            <pre className="text-sm text-yellow-800 overflow-auto">{JSON.stringify(result.details ?? {}, null, 2)}</pre>
+          </div>
+        )}
+
+        {result.error === 'pipeline_error' && (
+          <div className="bg-red-50 border border-red-200 rounded-lg p-4">
+            <h3 className="text-red-900 font-semibold mb-2">Server Error</h3>
+            <p className="text-sm text-red-800">{result.message ?? 'Unexpected processing error.'}</p>
+          </div>
+        )}
+      </div>
+    );
+  }
+
   return (
     <div className="max-w-4xl mx-auto p-6 space-y-6">
       <div className="flex items-center justify-between mb-6">

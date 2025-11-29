@@ -12,14 +12,16 @@ export const useImageDropzone = ({ onDrop, maxSizeMB = 10 }: UseImageDropzonePro
   const validateFile = (file: File): boolean => {
     setError(null);
 
-    if (!file.type.startsWith('image/')) {
-      setError('Please upload an image file');
+    // Enforce allowed types per contract
+    const allowedTypes = ['image/jpeg', 'image/png', 'image/webp'];
+    if (!allowedTypes.includes(file.type)) {
+      setError('Supported formats: .jpg, .jpeg, .png, .webp');
       return false;
     }
 
     const maxSizeBytes = maxSizeMB * 1024 * 1024;
     if (file.size > maxSizeBytes) {
-      setError(`File size must be less than ${maxSizeMB}MB`);
+      setError(`File size must be ≤ ${maxSizeMB}MB`);
       return false;
     }
 

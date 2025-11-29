@@ -11,17 +11,19 @@ export const api = axios.create({
 });
 
 export interface UploadScanParams {
-  file: File;
-  userProfile?: UserProfile;
+  image: File;
+  profile?: UserProfile;
 }
 
 export const scanAPI = {
-  uploadScan: async ({ file, userProfile }: UploadScanParams): Promise<ScanResponse> => {
+  uploadScan: async ({ image, profile }: UploadScanParams): Promise<ScanResponse> => {
     const formData = new FormData();
-    formData.append('file', file);
-    
-    if (userProfile) {
-      formData.append('user_profile', JSON.stringify(userProfile));
+    // Contract: image field for file upload
+    formData.append('image', image);
+
+    // Optional profile JSON per contract
+    if (profile) {
+      formData.append('profile', JSON.stringify(profile));
     }
 
     const response = await api.post<ScanResponse>('/api/v1/scan/', formData, {
