@@ -80,7 +80,7 @@ export const ScanResults = ({ result, onReset }: ScanResultsProps) => {
       <div className="flex items-center justify-between mb-6">
         <div>
           <h1 className="text-3xl font-bold text-gray-900">Scan Results</h1>
-          <p className="text-sm text-gray-600 mt-1">
+          <p className="text-sm text-gray-700 mt-1">
             Scan ID: {result.scan_id} • {new Date(result.timestamp).toLocaleString()}
           </p>
         </div>
@@ -102,7 +102,7 @@ export const ScanResults = ({ result, onReset }: ScanResultsProps) => {
 
       <div className="bg-white rounded-lg shadow-md p-6">
         <h3 className="text-lg font-semibold text-gray-900 mb-2">Summary</h3>
-        <p className="text-gray-700">{result.summary}</p>
+        <p className="text-gray-800">{result.summary}</p>
       </div>
 
       <AllergenChips alerts={result.allergen_alerts} />
@@ -121,3 +121,50 @@ export const ScanResults = ({ result, onReset }: ScanResultsProps) => {
     </div>
   );
 };
+
+export const ScanResultsSkeleton = () => {
+  return (
+    <div className="space-y-6 animate-pulse">
+      <div className="flex items-center justify-between">
+        <div>
+          <div className="h-6 w-40 bg-gray-200 rounded" />
+          <div className="h-4 w-64 bg-gray-200 rounded mt-2" />
+        </div>
+        <div className="h-9 w-24 bg-gray-200 rounded" />
+      </div>
+
+      <div className="flex items-center gap-4 p-6 bg-white rounded-lg shadow">
+        <div className="w-16 h-16 rounded-full bg-gray-200" />
+        <div className="space-y-2">
+          <div className="h-5 w-24 bg-gray-200 rounded" />
+          <div className="h-4 w-32 bg-gray-200 rounded" />
+        </div>
+      </div>
+
+      <div className="bg-white rounded-lg shadow p-6">
+        <div className="h-5 w-24 bg-gray-200 rounded mb-3" />
+        <div className="h-4 w-full bg-gray-200 rounded" />
+        <div className="h-4 w-5/6 bg-gray-200 rounded mt-2" />
+        <div className="h-4 w-4/6 bg-gray-200 rounded mt-2" />
+      </div>
+
+      <div className="bg-white rounded-lg shadow p-6">
+        <div className="h-5 w-28 bg-gray-200 rounded mb-3" />
+        <div className="grid grid-cols-3 gap-3">
+          <div className="h-6 bg-gray-200 rounded" />
+          <div className="h-6 bg-gray-200 rounded" />
+          <div className="h-6 bg-gray-200 rounded" />
+        </div>
+      </div>
+
+      <div className="bg-white rounded-lg shadow p-6">
+        <div className="h-5 w-24 bg-gray-200 rounded mb-3" />
+        <div className="space-y-2">
+          <div className="h-4 w-full bg-gray-200 rounded" />
+          <div className="h-4 w-11/12 bg-gray-200 rounded" />
+          <div className="h-4 w-10/12 bg-gray-200 rounded" />
+        </div>
+      </div>
+    </div>
+  );
+}
