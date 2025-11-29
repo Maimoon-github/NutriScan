@@ -62,12 +62,29 @@ class ScanAnalyzeView(APIView):
         try:
             pipeline = NutriScanPipeline()
             
-            # Save image temporarily (Phase 2: might upload to S3)
-            image_path = image_file.temporary_file_path() if hasattr(image_file, 'temporary_file_path') else None
+            # Get image path - handle both temporary files and in-memory uploads
+            if hasattr(image_file, 'temporary_file_path'):
+                # File is large enough to be stored on disk
+                image_path = image_file.temporary_file_path()
+            else:
+                # File is in memory - save it temporarily
+                import tempfile
+                import os
+                
+                # Create temp file with proper extension
+                file_extension = os.path.splitext(image_file.name)[1] or '.jpg'
+                temp_file = tempfile.NamedTemporaryFile(delete=False, suffix=file_extension)
+                
+                # Write uploaded file to temp location
+                for chunk in image_file.chunks():
+                    temp_file.write(chunk)
+                temp_file.close()
+                
+                image_path = temp_file.name
             
             # Run analysis
             analysis_result = pipeline.process_scan(
-                image_path=image_path or str(image_file),
+                image_path=image_path,
                 user_profile=user_profile
             )
             

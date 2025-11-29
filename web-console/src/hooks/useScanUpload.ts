@@ -23,7 +23,7 @@ export function useScanUploadExtended() {
     const formData = new FormData();
     formData.append('image', file);
     try {
-      const res = await axios.post('/api/scan/', formData, {
+      const res = await axios.post('http://127.0.0.1:8000/api/v1/scan/', formData, {
         headers: { 'Content-Type': 'multipart/form-data' },
         onUploadProgress: () => {
           stage = 'processing';
@@ -47,13 +47,16 @@ export function useScanUploadExtended() {
     }
   };
 
-  const mutation = useMutation<ScanResponse, Error, { file: File }>(upload);
+  const mutation = useMutation<ScanResponse, Error, { file: File }>({
+    mutationFn: upload,
+    retry: 1,
+  });
 
   const retryWithBackoff = async (attempts = 3) => {
     let delay = 500;
     for (let i = 0; i < attempts; i++) {
       try {
-        await mutation.retry();
+        await mutation.mutate;
         return;
       } catch (e) {
         await new Promise((r) => setTimeout(r, delay));
