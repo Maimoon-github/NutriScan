@@ -1,9 +1,11 @@
 import type { ScanResponse } from '../types/api';
 import { TrafficLightBadge } from './TrafficLightBadge';
 import { IngredientList } from './IngredientList';
-import { AllergenAlerts } from './AllergenAlerts';
+import { AllergenChips } from './AllergenChips';
 import { WhyAccordion } from './WhyAccordion';
 import { BetterSwapsList } from './BetterSwapsList';
+import { RegulatoryFlags } from './RegulatoryFlags';
+import { MetaPanel } from './MetaPanel';
 
 type ApiError = {
   error: 'validation_error' | 'pipeline_error' | string;
@@ -48,6 +50,31 @@ export const ScanResults = ({ result, onReset }: ScanResultsProps) => {
     );
   }
 
+  if (result.status === 'unreadable') {
+    return (
+      <div className="max-w-3xl mx-auto p-6 space-y-4">
+        <div className="flex items-center justify-between mb-4">
+          <h1 className="text-2xl font-bold text-gray-900">Scan Failed</h1>
+          <button
+            onClick={onReset}
+            className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+          >
+            Retake Photo
+          </button>
+        </div>
+        <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4 space-y-2">
+          <p className="text-yellow-900 font-medium">We couldn’t read the label.</p>
+          <ul className="list-disc list-inside text-sm text-yellow-800">
+            <li>Ensure good lighting and avoid glare.</li>
+            <li>Fill the frame with the ingredient list.</li>
+            <li>Hold steady and avoid motion blur.</li>
+          </ul>
+        </div>
+        <MetaPanel ocrConfidence={result.ocr_confidence} latencyMs={result.latency_ms} status={result.status} />
+      </div>
+    );
+  }
+
   return (
     <div className="max-w-4xl mx-auto p-6 space-y-6">
       <div className="flex items-center justify-between mb-6">
@@ -65,33 +92,20 @@ export const ScanResults = ({ result, onReset }: ScanResultsProps) => {
         </button>
       </div>
 
-      <TrafficLightBadge trafficLight={result.traffic_light} />
+      <TrafficLightBadge trafficLight={result.traffic_light} status={result.status} />
+
+      {result.status === 'partial_ocr_failure' && (
+        <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4">
+          <p className="text-yellow-900 font-medium">Partial OCR failure: some text may be missing or inaccurate.</p>
+        </div>
+      )}
 
       <div className="bg-white rounded-lg shadow-md p-6">
-        <h3 className="text-lg font-semibold text-gray-900 mb-2">Health Impact Summary</h3>
-        <p className="text-gray-700 mb-2">{result.health_impact_summary.short_summary}</p>
-        <p className="text-sm text-gray-600">{result.health_impact_summary.detailed_analysis}</p>
-        
-        <div className="mt-4 flex gap-4 flex-wrap">
-          {result.health_impact_summary.is_halal !== null && (
-            <span className={`px-3 py-1 rounded-full text-sm font-medium ${result.health_impact_summary.is_halal ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-800'}`}>
-              {result.health_impact_summary.is_halal ? '✓ Halal' : '✗ Not Halal'}
-            </span>
-          )}
-          {result.health_impact_summary.is_vegan !== null && (
-            <span className={`px-3 py-1 rounded-full text-sm font-medium ${result.health_impact_summary.is_vegan ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-800'}`}>
-              {result.health_impact_summary.is_vegan ? '✓ Vegan' : '✗ Not Vegan'}
-            </span>
-          )}
-          {result.health_impact_summary.is_infant_safe !== null && (
-            <span className={`px-3 py-1 rounded-full text-sm font-medium ${result.health_impact_summary.is_infant_safe ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'}`}>
-              {result.health_impact_summary.is_infant_safe ? '✓ Infant Safe' : '⚠ Not for Infants'}
-            </span>
-          )}
-        </div>
+        <h3 className="text-lg font-semibold text-gray-900 mb-2">Summary</h3>
+        <p className="text-gray-700">{result.summary}</p>
       </div>
 
-      <AllergenAlerts allergens={result.allergen_alerts} />
+      <AllergenChips alerts={result.allergen_alerts} />
 
       <WhyAccordion why={result.why} citations={result.citations} />
 
@@ -101,13 +115,9 @@ export const ScanResults = ({ result, onReset }: ScanResultsProps) => {
 
       <BetterSwapsList swaps={result.better_swaps} />
 
-      <div className="bg-gray-50 rounded-lg p-4 text-sm text-gray-600">
-        <div className="flex justify-between">
-          <span>OCR Confidence: {result.ocr_confidence ? `${(result.ocr_confidence * 100).toFixed(1)}%` : 'N/A'}</span>
-          <span>Processing Time: {result.latency_ms}ms</span>
-          <span>Status: {result.status}</span>
-        </div>
-      </div>
+      <RegulatoryFlags flags={result.regulatory_flags} />
+
+      <MetaPanel ocrConfidence={result.ocr_confidence} latencyMs={result.latency_ms} status={result.status} />
     </div>
   );
 };

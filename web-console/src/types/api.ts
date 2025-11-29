@@ -13,65 +13,53 @@ export interface UserProfile {
 export interface ScanResponse {
   scan_id: string;
   timestamp: string;
-  status: 'success' | 'partial' | 'failed';
-  user_context_used: boolean;
-  traffic_light: TrafficLight;
-  ocr_raw_text: string | null;
-  ocr_confidence: number | null;
+  status: 'success' | 'partial_ocr_failure' | 'unreadable';
+  traffic_light: 'green' | 'yellow' | 'red';
+  summary: string;
+  why: string; // Markdown-supported text
+  citations: Citation[];
   parsed_ingredients: Ingredient[];
   allergen_alerts: AllergenAlert[];
-  health_impact_summary: HealthImpactSummary;
-  why: WhyExplanation;
-  citations: Citation[];
   better_swaps: BetterSwap[];
+  regulatory_flags: RegulatoryFlag[];
+  ocr_confidence: number | null;
   latency_ms: number;
 }
 
-export interface TrafficLight {
-  // Contract uses direct traffic_light color string
-  // UI derives label/confidence if needed from other fields
-  // Keeping minimal per contract
-  // If your contract includes structured object, adjust here.
-  status: 'green' | 'yellow' | 'red';
-  label: string;
-  confidence: number;
-}
+// traffic_light is a direct color string in the response
 
 export interface Ingredient {
   name: string;
   category: string;
-  risk_level: 'safe' | 'moderate' | 'high';
+  risk_level: 'safe' | 'caution' | 'avoid' | 'unknown';
 }
 
 export interface AllergenAlert {
-  allergen: string;
+  name: string;
   severity: 'low' | 'medium' | 'high';
   source: string;
 }
 
-export interface HealthImpactSummary {
-  verdict: string;
-  short_summary: string;
-  detailed_analysis: string;
-  is_halal?: boolean | null;
-  is_vegan?: boolean | null;
-  is_infant_safe?: boolean | null;
-}
+// Removed HealthImpactSummary to align with contract fields
 
-export interface WhyExplanation {
-  summary: string;
-  details: string[];
-  regulatory_basis: string;
-}
+// why is a Markdown string per contract
 
 export interface Citation {
-  source: string;
   title: string;
-  relevance: string;
+  source: string;
+  url: string;
+  excerpt: string;
 }
 
 export interface BetterSwap {
-  product_name: string;
-  reason: string;
-  health_score: number;
+  name: string;
+  brand?: string;
+  notes?: string;
+  price_hint?: string;
+}
+
+export interface RegulatoryFlag {
+  label: string;
+  jurisdiction: string;
+  severity: 'low' | 'medium' | 'high';
 }

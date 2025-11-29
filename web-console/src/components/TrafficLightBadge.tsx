@@ -1,17 +1,21 @@
-import type { TrafficLight } from '../types/api';
-
 interface TrafficLightBadgeProps {
-  trafficLight: TrafficLight;
+  trafficLight: 'green' | 'yellow' | 'red';
+  status: 'success' | 'partial_ocr_failure' | 'unreadable';
 }
 
-export const TrafficLightBadge = ({ trafficLight }: TrafficLightBadgeProps) => {
+export const TrafficLightBadge = ({ trafficLight, status }: TrafficLightBadgeProps) => {
   const colorMap = {
     green: 'bg-traffic-green',
     yellow: 'bg-traffic-yellow',
     red: 'bg-traffic-red',
   };
 
-  const bgColor = colorMap[trafficLight.status];
+  const bgColor = colorMap[trafficLight];
+  const labelMap = {
+    green: 'Good',
+    yellow: 'Caution',
+    red: 'Avoid',
+  } as const;
 
   return (
     <div className="flex items-center gap-4 p-6 bg-white rounded-lg shadow-md">
@@ -19,8 +23,8 @@ export const TrafficLightBadge = ({ trafficLight }: TrafficLightBadgeProps) => {
         <div className="w-12 h-12 bg-white rounded-full"></div>
       </div>
       <div>
-        <h2 className="text-2xl font-bold text-gray-900">{trafficLight.label}</h2>
-        <p className="text-sm text-gray-600">Confidence: {(trafficLight.confidence * 100).toFixed(0)}%</p>
+        <h2 className="text-2xl font-bold text-gray-900">{labelMap[trafficLight]}</h2>
+        <p className="text-sm text-gray-600">Status: {status.replace(/_/g, ' ')}</p>
       </div>
     </div>
   );

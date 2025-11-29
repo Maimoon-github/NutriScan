@@ -7,8 +7,9 @@ interface IngredientListProps {
 export const IngredientList = ({ ingredients }: IngredientListProps) => {
   const riskColors = {
     safe: 'bg-green-100 text-green-800',
-    moderate: 'bg-yellow-100 text-yellow-800',
-    high: 'bg-red-100 text-red-800',
+    caution: 'bg-yellow-100 text-yellow-800',
+    avoid: 'bg-red-100 text-red-800',
+    unknown: 'bg-gray-100 text-gray-800',
   };
 
   return (
