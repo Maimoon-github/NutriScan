@@ -19,6 +19,11 @@ interface ScanResultsProps {
 }
 
 export const ScanResults = ({ result, onReset }: ScanResultsProps) => {
+  // Debug: log full response for verification
+  if (typeof window !== 'undefined') {
+    // eslint-disable-next-line no-console
+    console.log('ScanResponse payload:', result);
+  }
   // Error handling per contract
   if ('error' in result) {
     return (
@@ -102,18 +107,95 @@ export const ScanResults = ({ result, onReset }: ScanResultsProps) => {
 
       <div className="bg-white rounded-lg shadow-md p-6">
         <h3 className="text-lg font-semibold text-gray-900 mb-2">Summary</h3>
-        <p className="text-gray-800">{result.summary}</p>
+        <p className="text-gray-800">{result.health_impact_summary.short_summary}</p>
       </div>
 
+      {/* Allergens & Additives - show full details */}
       <AllergenChips alerts={result.allergen_alerts} />
+      {result.allergen_alerts.length > 0 && (
+        <div className="bg-white rounded-lg shadow-md p-6">
+          <h3 className="text-lg font-semibold text-gray-900 mb-3">Allergen Details</h3>
+          <div className="space-y-3">
+            {result.allergen_alerts.map((a, idx) => (
+              <div key={idx} className="border rounded p-3">
+                <div className="font-medium text-gray-900">{a.substance}</div>
+                <div className="text-sm text-gray-700">Severity: {a.severity.toUpperCase()}</div>
+                <div className="text-sm text-gray-700">Evidence: {a.evidence}</div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
 
-      <WhyAccordion why={result.why} citations={result.citations} />
+      {/* Detailed Analysis - always visible */}
+      <div className="bg-white rounded-lg shadow-md p-6">
+        <h3 className="text-lg font-semibold text-gray-900 mb-3">Detailed Analysis</h3>
+        <p className="text-gray-800 whitespace-pre-line">{result.health_impact_summary.detailed_analysis}</p>
+      </div>
+
+      {/* Why explanation (plain-language) */}
+      <div className="bg-white rounded-lg shadow-md p-6">
+        <h3 className="text-lg font-semibold text-gray-900 mb-2">Why</h3>
+        <p className="text-gray-800">{result.why}</p>
+      </div>
+
+      {/* Regulatory Citations (RAG) */}
+      {result.citations?.length > 0 && (
+        <div className="bg-white rounded-lg shadow-md p-6">
+          <h3 className="text-lg font-semibold text-gray-900 mb-3">Regulatory Citations</h3>
+          <ul className="space-y-2">
+            {result.citations.map((c, idx) => (
+              <li key={idx} className="border rounded p-3">
+                <div className="font-medium text-gray-900">{c.authority}</div>
+                {c.doc_id && (
+                  <div className="text-sm text-gray-700">Doc: {c.doc_id}</div>
+                )}
+                {c.excerpt && (
+                  <div className="text-sm text-gray-700 italic">“{c.excerpt}”</div>
+                )}
+                {c.url && (
+                  <a href={c.url} target="_blank" rel="noreferrer" className="text-sm text-blue-700 underline">
+                    View Source
+                  </a>
+                )}
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
 
       {result.parsed_ingredients.length > 0 && (
         <IngredientList ingredients={result.parsed_ingredients} />
       )}
 
       <BetterSwapsList swaps={result.better_swaps} />
+
+      {/* Suggestions (general tips and swaps) */}
+      {result.suggestions?.length > 0 && (
+        <div className="bg-white rounded-lg shadow-md p-6">
+          <h3 className="text-lg font-semibold text-gray-900 mb-3">Suggestions</h3>
+          <ul className="list-disc list-inside space-y-1 text-gray-800">
+            {result.suggestions.map((s, idx) => (
+              <li key={idx}>
+                {s.type === 'swap' && s.product_name ? (
+                  <span className="font-medium">Swap:</span>
+                ) : (
+                  <span className="font-medium">Tip:</span>
+                )}{' '}
+                {s.product_name ? `${s.product_name} — ` : ''}{s.reason}
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
+
+      {/* OCR raw text for debugging/user correction */}
+      {result.ocr_raw_text && result.ocr_raw_text.length > 0 && (
+        <div className="bg-white rounded-lg shadow-md p-6">
+          <h3 className="text-lg font-semibold text-gray-900 mb-3">OCR Extracted Text</h3>
+          <pre className="text-sm text-gray-800 whitespace-pre-wrap">{result.ocr_raw_text}</pre>
+        </div>
+      )}
 
       <RegulatoryFlags flags={result.regulatory_flags} />
 
