@@ -18,7 +18,7 @@ Read [](file:///c%3A/Users/CreativePC/Documents/vscode/NutriScan/analyzer/servic
 
 Read [](file:///c%3A/Users/CreativePC/Documents/vscode/NutriScan/analyzer/services/pipeline.py)
 
-Read [](file:///c%3A/Users/CreativePC/Documents/vscode/NutriScan/api_contrack.json)
+Read [](file:///c%3A/Users/CreativePC/Documents/vscode/NutriScan/api_contract.json)
 
 Read [](file:///c%3A/Users/CreativePC/Documents/vscode/NutriScan/test_api.py)
 
@@ -64,7 +64,7 @@ Build a mobile-first MVP focused on the scan-to-answer flow, integrating with th
 **1) What to do next, why it matters, and how to do it**
 
 - Finalize API Contract
-  - What: Lock request/response for `/api/v1/scan/`; fix api_contrack.json filename typo; document fields the UI must render.
+  - What: Lock request/response for `/api/v1/scan/`; fix api_contract.json filename typo; document fields the UI must render.
   - Why: Prevent breaking UI; align fields like `traffic_light`, `why`, `citations`, `better_swaps`, `ingredients`, `allergens`, `ocr_confidence`, `latency_ms`.
   - How: Validate the serializer contract in serializers.py; rename the JSON contract file to match; add 2–3 example responses (success/partial/unreadable).
 

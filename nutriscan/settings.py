@@ -82,7 +82,7 @@ SECRET_KEY = 'django-insecure-2-)hww4x+p(=$e-+lx0r5w5h7!ud1kxuwin-4-0tkxdtl+w)r&
 _debug_env = os.getenv("DEBUG", os.getenv("DJANGO_DEBUG", "False"))
 DEBUG = str(_debug_env).strip().lower() in {"1", "true", "yes", "on"}
 
-ALLOWED_HOSTS = [h for h in os.getenv("ALLOWED_HOSTS", "").split(",") if h.strip()] or ["localhost", "127.0.0.1"]
+ALLOWED_HOSTS = [h for h in os.getenv("ALLOWED_HOSTS", "").split(",") if h.strip()] or ["localhost", "127.0.0.1", "testserver"]
 
 
 # Application definition
@@ -217,7 +217,12 @@ REST_FRAMEWORK = {
 
 # In development (DEBUG=True), allow all origins; otherwise restrict
 _cors_allow_all = True if DEBUG else False
+
+# Example local network IPs for mobile testing:
+# Set CORS_ALLOWED_ORIGINS environment variable like:
+# "http://localhost:3000,http://192.168.1.100:3000,http://10.0.0.5:3000"
 _cors_origins = [o.strip() for o in os.getenv('CORS_ALLOWED_ORIGINS', '').split(',') if o.strip()] if not DEBUG else []
+
 CORS_ALLOW_ALL_ORIGINS = _cors_allow_all
 if not DEBUG:
     CORS_ALLOWED_ORIGINS = _cors_origins
