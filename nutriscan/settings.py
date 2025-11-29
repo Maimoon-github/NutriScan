@@ -11,10 +11,14 @@ https://docs.djangoproject.com/en/5.2/ref/settings/
 """
 
 import os
+from dotenv import load_dotenv
 from pathlib import Path
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
+
+# Load environment variables from .env at project start
+load_dotenv(BASE_DIR / ".env")
 
 
 # Quick-start development settings - unsuitable for production
@@ -24,9 +28,11 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 SECRET_KEY = 'django-insecure-2-)hww4x+p(=$e-+lx0r5w5h7!ud1kxuwin-4-0tkxdtl+w)r&'
 
 # SECURITY WARNING: don't run with debug turned on in production!
-DEBUG = True
+# DEBUG sourced from environment; defaults to False for production safety
+_debug_env = os.getenv("DEBUG", os.getenv("DJANGO_DEBUG", "False"))
+DEBUG = str(_debug_env).strip().lower() in {"1", "true", "yes", "on"}
 
-ALLOWED_HOSTS = []
+ALLOWED_HOSTS = [h for h in os.getenv("ALLOWED_HOSTS", "").split(",") if h.strip()] or ["localhost", "127.0.0.1"]
 
 
 # Application definition
@@ -159,9 +165,12 @@ REST_FRAMEWORK = {
 # CORS SETTINGS (for Mobile App)
 # =======================================
 
-# In development, allow all origins
-# In production, restrict to your mobile app's domain
-CORS_ALLOW_ALL_ORIGINS = True  # Phase 1 only - restrict in production!
+# In development (DEBUG=True), allow all origins; otherwise restrict
+_cors_allow_all = True if DEBUG else False
+_cors_origins = [o.strip() for o in os.getenv('CORS_ALLOWED_ORIGINS', '').split(',') if o.strip()] if not DEBUG else []
+CORS_ALLOW_ALL_ORIGINS = _cors_allow_all
+if not DEBUG:
+    CORS_ALLOWED_ORIGINS = _cors_origins
 
 CORS_ALLOW_METHODS = [
     'GET',
@@ -297,7 +306,6 @@ LOGGING = {
 }
 
 # Create logs directory if it doesn't exist
-import os
 LOGS_DIR = BASE_DIR / 'logs'
 if not os.path.exists(LOGS_DIR):
     os.makedirs(LOGS_DIR)
