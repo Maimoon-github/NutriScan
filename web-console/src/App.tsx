@@ -2,9 +2,11 @@ import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { setLanguage } from './i18n';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import * as Sentry from '@sentry/react';
 import { ImageUpload } from './components/ImageUpload';
 import { ScanResults } from './components/ScanResults';
 import { useScanUploadExtended } from './hooks/useScanUpload';
+import { trackInteraction } from './lib/observability';
 import type { ScanResponse } from './types/api';
 
 const queryClient = new QueryClient({
@@ -22,11 +24,19 @@ function AppContent() {
   const { t, i18n } = useTranslation();
 
   const handleImageSelect = (file: File) => {
+    // Track scan started event
+    trackInteraction('scan_started', 'image_upload');
+    
     uploadScan(
       { file },
       {
         onSuccess: (data) => {
           setScanResult(data);
+          // Track successful scan
+          trackInteraction('scan_completed', 'analysis_view', {
+            traffic_light: data.traffic_light,
+            status: data.status
+          });
         },
       }
     );
@@ -74,9 +84,31 @@ function AppContent() {
 
 function App() {
   return (
-    <QueryClientProvider client={queryClient}>
-      <AppContent />
-    </QueryClientProvider>
+    <Sentry.ErrorBoundary 
+      fallback={({ resetError }: { error: Error; resetError: () => void }) => (
+        <div className="min-h-screen flex items-center justify-center bg-red-50">
+          <div className="max-w-md p-6 bg-white rounded-lg shadow-lg">
+            <h2 className="text-xl font-bold text-red-900 mb-2">Something went wrong</h2>
+            <p className="text-red-700 mb-4">
+              We apologize for the inconvenience. The error has been reported to our team.
+            </p>
+            <button
+              onClick={resetError}
+              className="bg-red-600 text-white px-4 py-2 rounded hover:bg-red-700"
+            >
+              Try again
+            </button>
+          </div>
+        </div>
+      )}
+      beforeCapture={(scope: any) => {
+        scope.setTag('component', 'App')
+      }}
+    >
+      <QueryClientProvider client={queryClient}>
+        <AppContent />
+      </QueryClientProvider>
+    </Sentry.ErrorBoundary>
   );
 }
 

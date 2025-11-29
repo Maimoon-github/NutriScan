@@ -119,9 +119,8 @@ Build a mobile-first MVP focused on the scan-to-answer flow, integrating with th
   - CORS: leave open in dev; tighten in prod via `django-cors-headers`.
 
 - AI/Infra (Free or near-free paths)
-  - LLM: Local `ollama` for demos; or hosted small model when needed.
-  - Vector DB: Skip for MVP; use mocked RAG (already supported). Later: Pinecone free tier or Weaviate Cloud Sandbox.
-  - Hosting: Railway/Render free tiers for API; Cloudflare R2 or Cloudinary free tier for images (optional).
+  - LLM: Local `ollama` model.
+  - Vector DB: Skip for MVP; use mocked RAG (already supported). Later: Pinecone free tier.
   - Analytics/Errors: PostHog Community (product analytics), Sentry free (crash/reporting).
   - CI/CD: GitHub Actions.
 

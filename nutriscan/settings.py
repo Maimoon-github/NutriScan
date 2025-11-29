@@ -20,6 +20,56 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 # Load environment variables from .env at project start
 load_dotenv(BASE_DIR / ".env")
 
+# =======================================
+# OBSERVABILITY & ERROR TRACKING
+# =======================================
+
+# Sentry Configuration
+SENTRY_DSN = os.getenv('SENTRY_DSN')
+
+if SENTRY_DSN:
+    import sentry_sdk
+    from sentry_sdk.integrations.django import DjangoIntegration
+    from sentry_sdk.integrations.logging import LoggingIntegration
+    
+    # Configure Sentry SDK
+    sentry_sdk.init(
+        dsn=SENTRY_DSN,
+        integrations=[
+            DjangoIntegration(
+                transaction_style='url',
+                middleware_spans=True,
+                signals_spans=False,
+            ),
+            LoggingIntegration(
+                level=None,        # Capture info and above
+                event_level=None   # Send no events from log messages
+            ),
+        ],
+        
+        # Performance monitoring
+        traces_sample_rate=0.1 if not DEBUG else 1.0,  # 10% in production, 100% in dev
+        
+        # Error capture
+        send_default_pii=False,  # Don't send personally identifiable info
+        
+        # Environment and release
+        environment='development' if DEBUG else 'production',
+        release=f"nutriscan-backend@{os.getenv('APP_VERSION', '1.0.0')}",
+        
+        # Server name
+        server_name=os.getenv('SERVER_NAME', 'nutriscan-api'),
+        
+        # Error filtering
+        before_send=lambda event, hint: None if 'exc_info' in hint and 
+                                              hint['exc_info'][0].__name__ in ['KeyboardInterrupt'] 
+                                         else event,
+    )
+    
+    print(f"✅ Sentry initialized for error tracking (environment: {'development' if DEBUG else 'production'})")
+else:
+    print("ℹ️ Sentry not configured (SENTRY_DSN missing)")
+
 
 # Quick-start development settings - unsuitable for production
 # See https://docs.djangoproject.com/en/5.2/howto/deployment/checklist/
