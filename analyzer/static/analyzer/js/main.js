@@ -9,14 +9,37 @@ function initializeUI() {
     // Initialize event listeners
     initializeFormHandlers();
     initializeImagePreview();
+    logPageDebugInfo();
+}
+
+function logPageDebugInfo() {
+    // Log page-specific debug info
+    if (window.location.pathname.includes('/results/')) {
+        console.group('NutriScan Results Page Debug Info');
+        console.log('URL:', window.location.href);
+        
+        // Log all data attributes available on the page
+        const dataElements = document.querySelectorAll('[data-*]');
+        console.log('Elements with data attributes:', dataElements.length);
+        
+        // Log any visible JSON on the page
+        const scripts = document.querySelectorAll('script');
+        scripts.forEach((script, idx) => {
+            if (script.textContent.includes('const fullResponse')) {
+                console.log('Found fullResponse in script');
+            }
+        });
+        
+        console.groupEnd();
+    }
 }
 
 function initializeFormHandlers() {
     const uploadForm = document.getElementById('upload-form');
     if (uploadForm) {
         uploadForm.addEventListener('submit', function(e) {
-            // Form submission will be handled by Django
-            console.log('Form submitted');
+            // Log form submission
+            console.log('Upload form submitted');
         });
     }
 }
@@ -27,9 +50,9 @@ function initializeImagePreview() {
         imageInput.addEventListener('change', function(e) {
             const file = e.target.files[0];
             if (file && isValidImageFile(file)) {
-                console.log('Valid image file selected:', file.name);
+                console.log('Valid image file selected:', file.name, '(' + (file.size / 1024).toFixed(2) + ' KB)');
             } else {
-                alert('Please select a valid image file');
+                alert('Please select a valid image file (JPG, PNG, GIF - max 5MB)');
             }
         });
     }
@@ -76,7 +99,8 @@ function getCookie(name) {
 // API call examples
 async function uploadImage(formData) {
     try {
-        const response = await fetchWithCSRF('/api/upload/', {
+        console.log('Starting image upload...');
+        const response = await fetchWithCSRF('/upload/', {
             method: 'POST',
             body: formData
         });
@@ -87,6 +111,10 @@ async function uploadImage(formData) {
         
         const data = await response.json();
         console.log('Upload successful:', data);
+        console.group('API Response Structure');
+        console.log('Response keys:', Object.keys(data));
+        console.log('Full response:', data);
+        console.groupEnd();
         return data;
     } catch (error) {
         console.error('Upload failed:', error);
@@ -110,9 +138,26 @@ function showNotification(message, type = 'info') {
     }
 }
 
+// Expand/collapse detailed sections
+function toggleDetails(elementId) {
+    const element = document.getElementById(elementId);
+    if (element) {
+        element.classList.toggle('expanded');
+        console.log('Toggled details for:', elementId);
+    }
+}
+
 // Export functions for use in templates
 window.NutriScan = {
     showNotification,
     uploadImage,
-    fetchWithCSRF
+    fetchWithCSRF,
+    toggleDetails,
+    debugLog: function(data) {
+        console.group('NutriScan Debug');
+        console.log('Debug data:', data);
+        console.log('Data type:', typeof data);
+        console.log('Data keys:', data && typeof data === 'object' ? Object.keys(data) : 'N/A');
+        console.groupEnd();
+    }
 };

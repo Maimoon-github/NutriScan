@@ -61,6 +61,8 @@ class ResultsView(View):
     """Display analysis results"""
     
     def get(self, request, analysis_id):
+        import json
+        
         # Get analysis from session or database
         if analysis_id == 'last':
             analysis = request.session.get('last_analysis', {})
@@ -68,10 +70,45 @@ class ResultsView(View):
             # TODO: Implement database query for saved analyses
             analysis = {}
         
+        # Prepare context with all response fields from the API
         context = {
-            'nutrition_data': analysis.get('nutrition', {}),
-            'compliance_status': analysis.get('compliance', {}),
-            'image_url': analysis.get('image_url', '')
+            # Full response for debugging
+            'full_response_json': json.dumps(analysis),
+            
+            # Core identification
+            'scan_id': analysis.get('scan_id', ''),
+            'timestamp': analysis.get('timestamp', ''),
+            'status': analysis.get('status', 'unknown'),
+            'latency_ms': analysis.get('latency_ms', 0),
+            
+            # Health assessment
+            'traffic_light': analysis.get('traffic_light', 'yellow'),
+            'why': analysis.get('why', ''),
+            'health_impact_summary': analysis.get('health_impact_summary', {}),
+            
+            # OCR results
+            'ocr_raw_text': analysis.get('ocr_raw_text', ''),
+            'ocr_confidence': analysis.get('ocr_confidence', 0),
+            
+            # Parsed data
+            'parsed_ingredients': analysis.get('parsed_ingredients', []),
+            'nutrition_facts': analysis.get('nutrition_facts', {}),
+            'allergen_alerts': analysis.get('allergen_alerts', []),
+            'dietary_compliance': analysis.get('dietary_compliance', {}),
+            
+            # Citations and sources
+            'citations': analysis.get('citations', []),
+            'sources': analysis.get('sources', []),
+            
+            # Suggestions and swaps
+            'better_swaps': analysis.get('better_swaps', []),
+            'suggestions': analysis.get('suggestions', []),
+            
+            # Regulatory info
+            'regulatory_flags': analysis.get('regulatory_flags', []),
+            
+            # User context
+            'user_context_used': analysis.get('user_context_used', {}),
         }
         
         return render(request, 'analyzer/results.html', context)

@@ -5,57 +5,260 @@
 {% block content %}
 <div class="container">
     <div class="results-container">
-        <h2>Analysis Results</h2>
+        <h2>Nutrition Label Analysis Results</h2>
         
-        <div class="results-grid">
-            <div class="results-image">
-                <img src="{{ image_url }}" alt="Analyzed Label">
+        <!-- Full JSON Response (for debugging) -->
+        <script>
+            // Log full API response for debugging
+            const fullResponse = {{ full_response_json|safe }};
+            console.log('Full API Response:', fullResponse);
+            console.log('Available fields:', Object.keys(fullResponse));
+        </script>
+
+        <!-- Health Assessment (Traffic Light) -->
+        <section class="result-section traffic-light-section">
+            <div class="traffic-light-badge traffic-light-{{ traffic_light|lower }}">
+                <h3>Health Assessment: {{ traffic_light|upper }}</h3>
             </div>
+        </section>
 
-            <div class="results-data">
-                <section class="result-section">
-                    <h3>Nutritional Information</h3>
-                    <div id="nutrition-table">
-                        {% if nutrition_data %}
-                            <table class="data-table">
-                                <tr>
-                                    <th>Nutrient</th>
-                                    <th>Value</th>
-                                    <th>% Daily Value</th>
-                                </tr>
-                                {% for nutrient, value in nutrition_data.items %}
-                                    <tr>
-                                        <td>{{ nutrient }}</td>
-                                        <td>{{ value }}</td>
-                                        <td>-</td>
-                                    </tr>
-                                {% endfor %}
-                            </table>
-                        {% else %}
-                            <p>No nutritional data extracted</p>
-                        {% endif %}
-                    </div>
-                </section>
-
-                <section class="result-section">
-                    <h3>Regulatory Compliance</h3>
-                    <div id="compliance-info">
-                        {% if compliance_status %}
-                            <p class="compliance-{{ compliance_status.status|lower }}">
-                                {{ compliance_status.message }}
-                            </p>
-                        {% else %}
-                            <p>Compliance check pending</p>
-                        {% endif %}
-                    </div>
-                </section>
-
-                <div class="action-buttons">
-                    <a href="{% url 'analyzer:upload' %}" class="btn btn-primary">Analyze Another</a>
-                    <a href="{% url 'analyzer:home' %}" class="btn btn-secondary">Back Home</a>
+        <!-- Health Impact Summary -->
+        <section class="result-section">
+            <h3>Analysis Summary</h3>
+            {% if health_impact_summary %}
+                <div class="health-summary-card">
+                    <p class="health-verdict">{{ health_impact_summary.verdict|title }}</p>
+                    <p class="health-short-summary">{{ health_impact_summary.short_summary }}</p>
                 </div>
+            {% endif %}
+        </section>
+
+        <!-- Full Detailed Analysis (Why) -->
+        <section class="result-section expanded-section">
+            <h3>Detailed Analysis - Why This Rating?</h3>
+            {% if why %}
+                <div class="detailed-analysis-card">
+                    <p>{{ why }}</p>
+                </div>
+            {% endif %}
+        </section>
+
+        <!-- OCR Extraction Details -->
+        <section class="result-section">
+            <h3>Text Recognition (OCR)</h3>
+            <div class="ocr-details">
+                <p><strong>Confidence Score:</strong> {{ ocr_confidence|floatformat:1 }}%</p>
+                <details>
+                    <summary>View Extracted Text</summary>
+                    <pre class="ocr-raw-text">{{ ocr_raw_text }}</pre>
+                </details>
             </div>
+        </section>
+
+        <!-- Allergen Alerts -->
+        {% if allergen_alerts %}
+            <section class="result-section allergen-section">
+                <h3>Allergen Warnings</h3>
+                <div class="allergens-grid">
+                    {% for allergen in allergen_alerts %}
+                        <div class="allergen-card severity-{{ allergen.severity|lower }}">
+                            <h4>{{ allergen.substance }}</h4>
+                            <p class="severity-label">Severity: {{ allergen.severity|upper }}</p>
+                            <p class="allergen-evidence">{{ allergen.evidence }}</p>
+                        </div>
+                    {% endfor %}
+                </div>
+            </section>
+        {% endif %}
+
+        <!-- Parsed Ingredients & Additives -->
+        {% if parsed_ingredients %}
+            <section class="result-section ingredients-section">
+                <h3>Ingredients Analysis</h3>
+                <div class="ingredients-grid">
+                    {% for ingredient in parsed_ingredients %}
+                        <div class="ingredient-card category-{{ ingredient.category|lower }} risk-{{ ingredient.risk_level|lower }}">
+                            <h4>{{ ingredient.name }}</h4>
+                            <p class="ingredient-category">{{ ingredient.category|replace:"_":" "|title }}</p>
+                            <p class="ingredient-risk">Risk Level: <strong>{{ ingredient.risk_level|upper }}</strong></p>
+                            {% if ingredient.description %}
+                                <p class="ingredient-description">{{ ingredient.description }}</p>
+                            {% endif %}
+                            {% if ingredient.original_text %}
+                                <small class="ingredient-original">Original: {{ ingredient.original_text }}</small>
+                            {% endif %}
+                        </div>
+                    {% endfor %}
+                </div>
+            </section>
+        {% endif %}
+
+        <!-- Nutritional Information -->
+        {% if nutrition_facts %}
+            <section class="result-section">
+                <h3>Nutritional Information</h3>
+                <div class="nutrition-facts-card">
+                    {% if nutrition_facts.serving_size %}
+                        <p><strong>Serving Size:</strong> {{ nutrition_facts.serving_size }}</p>
+                    {% endif %}
+                    <table class="nutrition-table">
+                        <tr>
+                            <th>Nutrient</th>
+                            <th>Value</th>
+                        </tr>
+                        {% if nutrition_facts.calories %}
+                            <tr>
+                                <td>Calories</td>
+                                <td>{{ nutrition_facts.calories }} kcal</td>
+                            </tr>
+                        {% endif %}
+                        {% if nutrition_facts.sugar_g %}
+                            <tr>
+                                <td>Sugars</td>
+                                <td>{{ nutrition_facts.sugar_g }}g</td>
+                            </tr>
+                        {% endif %}
+                        {% if nutrition_facts.sodium_mg %}
+                            <tr>
+                                <td>Sodium</td>
+                                <td>{{ nutrition_facts.sodium_mg }}mg</td>
+                            </tr>
+                        {% endif %}
+                        {% if nutrition_facts.fat_g %}
+                            <tr>
+                                <td>Fat</td>
+                                <td>{{ nutrition_facts.fat_g }}g</td>
+                            </tr>
+                        {% endif %}
+                    </table>
+                </div>
+            </section>
+        {% endif %}
+
+        <!-- Dietary Compliance -->
+        {% if dietary_compliance %}
+            <section class="result-section">
+                <h3>Dietary & Religious Compliance</h3>
+                <div class="compliance-grid">
+                    <div class="compliance-item">
+                        <strong>Halal Certified:</strong>
+                        {% if dietary_compliance.is_halal %}
+                            <span class="badge-success">Yes</span>
+                        {% else %}
+                            <span class="badge-warning">Not Certified</span>
+                        {% endif %}
+                    </div>
+                    <div class="compliance-item">
+                        <strong>Vegan:</strong>
+                        {% if dietary_compliance.is_vegan %}
+                            <span class="badge-success">Yes</span>
+                        {% else %}
+                            <span class="badge-warning">Contains Animal Products</span>
+                        {% endif %}
+                    </div>
+                    <div class="compliance-item">
+                        <strong>Infant Safe:</strong>
+                        {% if dietary_compliance.is_infant_safe %}
+                            <span class="badge-success">Yes</span>
+                        {% else %}
+                            <span class="badge-danger">Not Recommended for Infants</span>
+                        {% endif %}
+                    </div>
+                    {% if dietary_compliance.flags %}
+                        <div class="compliance-flags">
+                            <strong>Flags:</strong>
+                            <ul>
+                                {% for flag in dietary_compliance.flags %}
+                                    <li>{{ flag }}</li>
+                                {% endfor %}
+                            </ul>
+                        </div>
+                    {% endif %}
+                </div>
+            </section>
+        {% endif %}
+
+        <!-- Better Swaps / Alternative Recommendations -->
+        {% if better_swaps %}
+            <section class="result-section swaps-section">
+                <h3>Better Alternatives</h3>
+                <div class="swaps-grid">
+                    {% for swap in better_swaps %}
+                        <div class="swap-card">
+                            {% if swap.product_name %}
+                                <h4>{{ swap.product_name }}</h4>
+                            {% endif %}
+                            <p class="swap-reason">{{ swap.reason }}</p>
+                            <small class="swap-type">{{ swap.type|replace:"_":" "|title }}</small>
+                        </div>
+                    {% endfor %}
+                </div>
+            </section>
+        {% endif %}
+
+        <!-- Regulatory Citations & Sources -->
+        {% if citations or sources %}
+            <section class="result-section citations-section">
+                <h3>Regulatory Sources & Citations</h3>
+                <div class="citations-list">
+                    {% for citation in citations %}
+                        <div class="citation-item">
+                            <strong>{{ citation.authority }}</strong>
+                            {% if citation.doc_id %}
+                                <p class="citation-id">Document ID: {{ citation.doc_id }}</p>
+                            {% endif %}
+                            {% if citation.url %}
+                                <a href="{{ citation.url }}" target="_blank" class="citation-link">View Source</a>
+                            {% endif %}
+                        </div>
+                    {% endfor %}
+                </div>
+            </section>
+        {% endif %}
+
+        <!-- Regulatory Flags -->
+        {% if regulatory_flags %}
+            <section class="result-section flags-section">
+                <h3>Regulatory Flags & Warnings</h3>
+                <ul class="flags-list">
+                    {% for flag in regulatory_flags %}
+                        <li class="flag-item">
+                            {% if flag.severity %}
+                                <span class="flag-severity">{{ flag.severity|upper }}</span>
+                            {% endif %}
+                            {% if flag.message %}
+                                {{ flag.message }}
+                            {% else %}
+                                {{ flag|safe }}
+                            {% endif %}
+                        </li>
+                    {% endfor %}
+                </ul>
+            </section>
+        {% endif %}
+
+        <!-- Processing Performance -->
+        <section class="result-section performance-section">
+            <p class="performance-info">Processing time: {{ latency_ms }}ms</p>
+            <p class="scan-id">Scan ID: {{ scan_id }}</p>
+        </section>
+
+        <!-- Action Buttons -->
+        <div class="action-buttons">
+            <a href="{% url 'analyzer:upload' %}" class="btn btn-primary">Analyze Another Label</a>
+            <a href="{% url 'analyzer:history' %}" class="btn btn-secondary">View History</a>
+            <a href="{% url 'analyzer:home' %}" class="btn btn-secondary">Back Home</a>
         </div>
     </div>
 </div>
+
+<script>
+    // Log individual response components for debugging
+    console.log('Traffic Light:', '{{ traffic_light }}');
+    console.log('Why:', '{{ why }}');
+    console.log('Number of ingredients:', {{ parsed_ingredients|length }});
+    console.log('Number of allergens:', {{ allergen_alerts|length }});
+    console.log('Number of citations:', {{ citations|length }});
+    console.log('Better swaps available:', {{ better_swaps|length }});
+</script>
 {% endblock %}
