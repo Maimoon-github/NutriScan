@@ -21,9 +21,15 @@ from django.conf.urls.static import static
 
 urlpatterns = [
     path('admin/', admin.site.urls),
-    path('api/v1/', include('analyzer.urls')),  # All analyzer endpoints under /api/v1/
+    
+    # Frontend routes (simple web UI)
+    path('', include('analyzer.urls')),
+    
+    # API routes
+    path('api/v1/', include('analyzer.urls')),
 ]
 
-# Serve media files in development
+# Serve media and static files in development
 if settings.DEBUG:
     urlpatterns += static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)
+    urlpatterns += static(settings.STATIC_URL, document_root=settings.STATIC_ROOT)

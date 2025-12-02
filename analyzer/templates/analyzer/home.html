@@ -1,0 +1,39 @@
+{% extends 'analyzer/base.html' %}
+
+{% block title %}Home - NutriScan{% endblock %}
+
+{% block content %}
+<div class="container hero">
+    <section class="hero-section">
+        <h2>Welcome to NutriScan</h2>
+        <p>Upload an image of a nutrition label and get instant analysis</p>
+        
+        <div class="cta-buttons">
+            <a href="{% url 'analyzer:upload' %}" class="btn btn-primary">Start Analysis</a>
+            <a href="#features" class="btn btn-secondary">Learn More</a>
+        </div>
+    </section>
+
+    <section id="features" class="features-section">
+        <h3>Features</h3>
+        <div class="features-grid">
+            <div class="feature-card">
+                <h4>📸 Image Recognition</h4>
+                <p>Upload images of nutrition labels and automatically extract information</p>
+            </div>
+            <div class="feature-card">
+                <h4>🔍 Detailed Analysis</h4>
+                <p>Get comprehensive nutritional data and regulatory compliance information</p>
+            </div>
+            <div class="feature-card">
+                <h4>📊 History Tracking</h4>
+                <p>View and manage all your previous analyses</p>
+            </div>
+            <div class="feature-card">
+                <h4>✅ Compliance Check</h4>
+                <p>Verify food labels against current regulations</p>
+            </div>
+        </div>
+    </section>
+</div>
+{% endblock %}

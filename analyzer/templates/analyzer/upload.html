@@ -1,0 +1,47 @@
+{% extends 'analyzer/base.html' %}
+
+{% block title %}Upload - NutriScan{% endblock %}
+
+{% block content %}
+<div class="container">
+    <div class="upload-container">
+        <h2>Upload Nutrition Label</h2>
+        
+        <form id="upload-form" method="post" enctype="multipart/form-data">
+            {% csrf_token %}
+            
+            <div class="form-group">
+                <label for="image">Select Image:</label>
+                <input type="file" id="image" name="image" accept="image/*" required>
+                <small>Supported formats: JPG, PNG, GIF</small>
+            </div>
+
+            <div class="form-group">
+                <label for="description">Description (optional):</label>
+                <textarea id="description" name="description" rows="3" placeholder="Add any notes about this label..."></textarea>
+            </div>
+
+            <button type="submit" class="btn btn-primary">Upload & Analyze</button>
+        </form>
+
+        <div id="preview" class="preview-section" style="display:none;">
+            <h3>Preview</h3>
+            <img id="preview-image" src="" alt="Preview" style="max-width: 300px;">
+        </div>
+    </div>
+</div>
+
+<script>
+    document.getElementById('image').addEventListener('change', function(e) {
+        const file = e.target.files[0];
+        if (file) {
+            const reader = new FileReader();
+            reader.onload = function(event) {
+                document.getElementById('preview-image').src = event.target.result;
+                document.getElementById('preview').style.display = 'block';
+            };
+            reader.readAsDataURL(file);
+        }
+    });
+</script>
+{% endblock %}

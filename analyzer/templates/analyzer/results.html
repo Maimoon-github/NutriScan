@@ -1,0 +1,61 @@
+{% extends 'analyzer/base.html' %}
+
+{% block title %}Analysis Results - NutriScan{% endblock %}
+
+{% block content %}
+<div class="container">
+    <div class="results-container">
+        <h2>Analysis Results</h2>
+        
+        <div class="results-grid">
+            <div class="results-image">
+                <img src="{{ image_url }}" alt="Analyzed Label">
+            </div>
+
+            <div class="results-data">
+                <section class="result-section">
+                    <h3>Nutritional Information</h3>
+                    <div id="nutrition-table">
+                        {% if nutrition_data %}
+                            <table class="data-table">
+                                <tr>
+                                    <th>Nutrient</th>
+                                    <th>Value</th>
+                                    <th>% Daily Value</th>
+                                </tr>
+                                {% for nutrient, value in nutrition_data.items %}
+                                    <tr>
+                                        <td>{{ nutrient }}</td>
+                                        <td>{{ value }}</td>
+                                        <td>-</td>
+                                    </tr>
+                                {% endfor %}
+                            </table>
+                        {% else %}
+                            <p>No nutritional data extracted</p>
+                        {% endif %}
+                    </div>
+                </section>
+
+                <section class="result-section">
+                    <h3>Regulatory Compliance</h3>
+                    <div id="compliance-info">
+                        {% if compliance_status %}
+                            <p class="compliance-{{ compliance_status.status|lower }}">
+                                {{ compliance_status.message }}
+                            </p>
+                        {% else %}
+                            <p>Compliance check pending</p>
+                        {% endif %}
+                    </div>
+                </section>
+
+                <div class="action-buttons">
+                    <a href="{% url 'analyzer:upload' %}" class="btn btn-primary">Analyze Another</a>
+                    <a href="{% url 'analyzer:home' %}" class="btn btn-secondary">Back Home</a>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
