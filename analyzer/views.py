@@ -12,20 +12,6 @@ from .services.pipeline import NutriScanPipeline
 import uuid
 from datetime import datetime
 
-from django.shortcuts import render, redirect, get_object_or_404
-from django.views import View
-from django.views.generic import ListView, DetailView
-from django.contrib.messages import success, error
-from django.http import JsonResponse
-from rest_framework.views import APIView
-from rest_framework.response import Response
-from rest_framework import status
-from rest_framework.parsers import MultiPartParser, FormParser
-from .serializers import ScanUploadSerializer, AnalysisResponseSerializer
-from .services.pipeline import NutriScanPipeline
-import uuid
-from datetime import datetime
-
 
 # ============================================================================
 # FRONTEND VIEWS (for web UI)
@@ -111,7 +97,7 @@ class HistoryView(ListView):
 # API VIEWS (REST API for mobile/external clients)
 # ============================================================================
 
-
+class ScanAnalyzeView(APIView):
     """
     POST /api/v1/scan/
     
