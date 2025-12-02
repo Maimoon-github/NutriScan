@@ -49,6 +49,7 @@ class OCRService:
         """
         self.confidence_threshold = confidence_threshold
         self.enable_table_recognition = enable_table_recognition
+        self.languages = ['en', 'ur']  # Supported languages: English and Urdu
         
         if PaddleOCR is None:
             raise ImportError(

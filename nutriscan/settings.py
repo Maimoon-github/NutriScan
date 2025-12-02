@@ -20,6 +20,17 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 # Load environment variables from .env at project start
 load_dotenv(BASE_DIR / ".env")
 
+# Quick-start development settings - unsuitable for production
+# See https://docs.djangoproject.com/en/5.2/howto/deployment/checklist/
+
+# SECURITY WARNING: keep the secret key used in production secret!
+SECRET_KEY = 'django-insecure-2-)hww4x+p(=$e-+lx0r5w5h7!ud1kxuwin-4-0tkxdtl+w)r&'
+
+# SECURITY WARNING: don't run with debug turned on in production!
+# DEBUG sourced from environment; defaults to False for production safety
+_debug_env = os.getenv("DEBUG", os.getenv("DJANGO_DEBUG", "False"))
+DEBUG = str(_debug_env).strip().lower() in {"1", "true", "yes", "on"}
+
 # =======================================
 # OBSERVABILITY & ERROR TRACKING
 # =======================================
@@ -65,22 +76,8 @@ if SENTRY_DSN:
                                               hint['exc_info'][0].__name__ in ['KeyboardInterrupt'] 
                                          else event,
     )
-    
-    print(f"✅ Sentry initialized for error tracking (environment: {'development' if DEBUG else 'production'})")
 else:
-    print("ℹ️ Sentry not configured (SENTRY_DSN missing)")
-
-
-# Quick-start development settings - unsuitable for production
-# See https://docs.djangoproject.com/en/5.2/howto/deployment/checklist/
-
-# SECURITY WARNING: keep the secret key used in production secret!
-SECRET_KEY = 'django-insecure-2-)hww4x+p(=$e-+lx0r5w5h7!ud1kxuwin-4-0tkxdtl+w)r&'
-
-# SECURITY WARNING: don't run with debug turned on in production!
-# DEBUG sourced from environment; defaults to False for production safety
-_debug_env = os.getenv("DEBUG", os.getenv("DJANGO_DEBUG", "False"))
-DEBUG = str(_debug_env).strip().lower() in {"1", "true", "yes", "on"}
+    pass  # Sentry not configured
 
 ALLOWED_HOSTS = [h for h in os.getenv("ALLOWED_HOSTS", "").split(",") if h.strip()] or ["localhost", "127.0.0.1", "testserver"]
 
