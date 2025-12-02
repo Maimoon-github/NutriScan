@@ -1,4 +1,5 @@
 {% extends 'analyzer/base.html' %}
+{% load custom_filters %}
 
 {% block title %}Analysis Results - NutriScan{% endblock %}
 
@@ -79,7 +80,7 @@
                     {% for ingredient in parsed_ingredients %}
                         <div class="ingredient-card category-{{ ingredient.category|lower }} risk-{{ ingredient.risk_level|lower }}">
                             <h4>{{ ingredient.name }}</h4>
-                            <p class="ingredient-category">{{ ingredient.category|replace:"_":" "|title }}</p>
+                            <p class="ingredient-category">{{ ingredient.category|replace_underscore }}</p>
                             <p class="ingredient-risk">Risk Level: <strong>{{ ingredient.risk_level|upper }}</strong></p>
                             {% if ingredient.description %}
                                 <p class="ingredient-description">{{ ingredient.description }}</p>
@@ -189,7 +190,7 @@
                                 <h4>{{ swap.product_name }}</h4>
                             {% endif %}
                             <p class="swap-reason">{{ swap.reason }}</p>
-                            <small class="swap-type">{{ swap.type|replace:"_":" "|title }}</small>
+                            <small class="swap-type">{{ swap.type|replace_underscore }}</small>
                         </div>
                     {% endfor %}
                 </div>
