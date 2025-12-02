@@ -17,20 +17,53 @@ import logging
 from datetime import datetime
 from typing import Dict, List, Optional
 import time
+from abc import ABC, abstractmethod
+import json
+
+# Disable tokenizers parallelism warning and optional transformers dependency
+os.environ["TOKENIZERS_PARALLELISM"] = "false"
+os.environ["TRANSFORMERS_OFFLINE"] = "1"
 
 # Import production OCR service
 from .ocr import OCRService
 
-# LangChain imports for LLM orchestration
-try:
-    from langchain.llms import Ollama
-    from langchain.prompts import PromptTemplate
-    from langchain.chains import LLMChain
-    from langchain.callbacks.manager import CallbackManager
-    from langchain.callbacks.streaming_stdout import StreamingStdOutCallbackHandler
-except ImportError:
-    Ollama = None
-    logging.warning("LangChain not installed. Install with: pip install langchain langchain-community")
+# LangChain imports for LLM orchestration - defer to avoid heavy imports at module load
+Ollama = None
+PromptTemplate = None
+LLMChain = None
+
+def _import_langchain():
+    """Lazy import of LangChain to avoid loading heavy dependencies at module load time."""
+    global Ollama, PromptTemplate, LLMChain
+    if Ollama is not None:
+        return True
+    try:
+        from langchain_community.llms import Ollama as _Ollama
+        from langchain.prompts import PromptTemplate as _PromptTemplate
+        from langchain.chains import LLMChain as _LLMChain
+        Ollama = _Ollama
+        PromptTemplate = _PromptTemplate
+        LLMChain = _LLMChain
+        return True
+    except Exception as e:
+        logging.warning(f"LangChain not available: {e}. Using mock mode.")
+        return False
+
+# OpenAI imports - defer to avoid heavy imports
+openai = None
+
+def _import_openai():
+    """Lazy import of OpenAI to avoid loading heavy dependencies at module load time."""
+    global openai
+    if openai is not None:
+        return True
+    try:
+        import openai as _openai
+        openai = _openai
+        return True
+    except Exception as e:
+        logging.warning(f"OpenAI not available: {e}. Using mock mode.")
+        return False
 
 # Pinecone for vector database
 try:
@@ -51,7 +84,545 @@ except ImportError:
 logger = logging.getLogger(__name__)
 
 
-class VectorDatabase:
+class RAGServiceInterface(ABC):
+    """Abstract interface for RAG services."""
+    
+    @abstractmethod
+    def search_regulations(self, keywords: List[str], region: str, top_k: int = 5) -> List[Dict]:
+        """Search for relevant regulations."""
+        pass
+    
+    @abstractmethod
+    def ingest_document(self, doc_id: str, content: str, metadata: Dict):
+        """Ingest a document into the knowledge base."""
+        pass
+
+
+class MockRAGService(RAGServiceInterface):
+    """
+    Mock RAG service that returns hardcoded regulatory context for demo purposes.
+    Use this when ENABLE_RAG=False or Pinecone is not available.
+    """
+    
+    def __init__(self):
+        logger.info("MockRAGService initialized - using hardcoded regulatory context")
+        self.mock_regulations = {
+            "sugar": [
+                {
+                    "source": "WHO Guidelines on Complementary Feeding",
+                    "content": "Added sugars should not be introduced before 2 years of age to prevent obesity and dental caries.",
+                    "id": "WHO-2023-SUGAR",
+                    "url": "https://www.who.int/nutrition/guidelines",
+                    "score": 0.95
+                },
+                {
+                    "source": "American Academy of Pediatrics",
+                    "content": "Infants under 12 months should not consume foods with added sugars.",
+                    "id": "AAP-2017-SUGAR",
+                    "url": "https://pediatrics.aappublications.org",
+                    "score": 0.93
+                }
+            ],
+            "sodium": [
+                {
+                    "source": "PSQCA Standards for Infant Foods",
+                    "content": "Sodium content must not exceed 100mg per serving for infant cereals.",
+                    "id": "PSQCA-2021-SODIUM",
+                    "url": "https://psqca.com.pk/",
+                    "score": 0.89
+                },
+                {
+                    "source": "WHO Salt Reduction Guidelines",
+                    "content": "Children under 2 years should consume less than 2g salt per day.",
+                    "id": "WHO-2012-SALT",
+                    "url": "https://www.who.int/dietphysicalactivity/reducingsalt",
+                    "score": 0.87
+                }
+            ],
+            "additives": [
+                {
+                    "source": "Punjab Pure Food Rules",
+                    "content": "Artificial colors and flavors are restricted in infant food products.",
+                    "id": "PFA-RULES-2018",
+                    "url": "https://pfa.gop.pk/",
+                    "score": 0.92
+                },
+                {
+                    "source": "EU Food Additives Regulation",
+                    "content": "E-number additives must be declared and limited in baby foods.",
+                    "id": "EU-1333-2008",
+                    "url": "https://eur-lex.europa.eu",
+                    "score": 0.88
+                }
+            ],
+            "allergens": [
+                {
+                    "source": "FDA Food Allergen Labeling Act",
+                    "content": "Must declare presence of milk, eggs, fish, shellfish, tree nuts, peanuts, wheat, and soybeans.",
+                    "id": "FDA-FALCPA-2004",
+                    "url": "https://www.fda.gov/food/food-allergensgluten-free",
+                    "score": 0.96
+                },
+                {
+                    "source": "Pakistan Food Safety Standards",
+                    "content": "Allergen cross-contamination must be prevented in food processing facilities.",
+                    "id": "PFSA-2015-ALLERGEN",
+                    "url": "https://mocc.gov.pk/",
+                    "score": 0.84
+                }
+            ]
+        }
+    
+    def search_regulations(self, keywords: List[str], region: str, top_k: int = 5) -> List[Dict]:
+        """Return mock regulations based on keywords."""
+        results = []
+        
+        # Keyword matching logic
+        keywords_lower = [k.lower() for k in keywords]
+        
+        for category, regulations in self.mock_regulations.items():
+            if any(keyword in category or category in keyword for keyword in keywords_lower):
+                results.extend(regulations)
+        
+        # If no specific matches, return general food safety guidelines
+        if not results:
+            results = [
+                {
+                    "source": "General Food Safety Guidelines",
+                    "content": "All food products must meet safety standards for intended consumer demographic.",
+                    "id": "GENERAL-SAFETY-2023",
+                    "url": "https://www.who.int/food-safety",
+                    "score": 0.70
+                }
+            ]
+        
+        # Sort by score and limit results
+        results = sorted(results, key=lambda x: x.get("score", 0), reverse=True)[:top_k]
+        
+        logger.info(f"MockRAGService returned {len(results)} regulations for keywords: {keywords}")
+        return results
+    
+    def ingest_document(self, doc_id: str, content: str, metadata: Dict):
+        """Mock document ingestion - logs the action but doesn't store."""
+        logger.info(f"MockRAGService: Simulated ingestion of document {doc_id}")
+
+
+class LLMProviderInterface(ABC):
+    """Abstract interface for LLM providers."""
+    
+    @abstractmethod
+    def generate_analysis(self, ocr_text: str, user_profile: Dict, regulations: List[Dict]) -> Dict:
+        """Generate health analysis."""
+        pass
+    
+    @abstractmethod
+    def is_available(self) -> bool:
+        """Check if the provider is available and properly configured."""
+        pass
+
+
+class MockLLMProvider(LLMProviderInterface):
+    """
+    Mock LLM provider that returns static analysis matching api_contract.json.
+    Use this as the default fallback when no LLM is available.
+    """
+    
+    def __init__(self):
+        logger.info("MockLLMProvider initialized - using rule-based analysis")
+    
+    def is_available(self) -> bool:
+        return True
+    
+    def generate_analysis(self, ocr_text: str, user_profile: Dict, regulations: List[Dict]) -> Dict:
+        """Generate mock analysis using simple rules."""
+        is_infant = user_profile.get("age_months", 24) < 12
+        contains_sugar = any(term in ocr_text.lower() for term in ["sugar", "syrup", "sweetener"])
+        contains_salt = any(term in ocr_text.lower() for term in ["salt", "sodium"])
+        contains_additives = any(term in ocr_text.lower() for term in ["e1", "e2", "e3", "artificial", "preservative"])
+        
+        # Simple rule-based verdict
+        risk_factors = 0
+        if is_infant and contains_sugar:
+            risk_factors += 3
+        elif contains_sugar:
+            risk_factors += 1
+        if contains_salt:
+            risk_factors += 1
+        if contains_additives:
+            risk_factors += 1
+        
+        if risk_factors >= 3:
+            verdict = "poor"
+        elif risk_factors >= 2:
+            verdict = "fair"
+        elif risk_factors >= 1:
+            verdict = "good"
+        else:
+            verdict = "excellent"
+        
+        # Generate summary based on analysis
+        if is_infant and contains_sugar:
+            summary = "Not recommended for your infant due to added sugar."
+            detail = "This product contains added sugar, which WHO guidelines recommend avoiding for infants under 2 years to prevent metabolic issues and dental problems."
+        elif contains_sugar and contains_additives:
+            summary = "Product contains sugar and additives requiring caution."
+            detail = "While not immediately harmful, the combination of added sugars and artificial additives may not align with optimal nutrition guidelines."
+        else:
+            summary = "Product appears suitable with standard dietary considerations."
+            detail = "Based on visible ingredients, this product meets basic safety standards. Always check for personal allergens and dietary restrictions."
+        
+        # Detect allergens from text
+        allergens = []
+        allergen_map = {
+            "wheat": "Wheat (Gluten)",
+            "milk": "Milk",
+            "soy": "Soy",
+            "egg": "Eggs",
+            "peanut": "Peanuts",
+            "tree nut": "Tree Nuts",
+            "fish": "Fish",
+            "shellfish": "Shellfish"
+        }
+        
+        for allergen_key, allergen_name in allergen_map.items():
+            if allergen_key in ocr_text.lower():
+                allergens.append({
+                    "substance": allergen_name,
+                    "severity": "high",
+                    "evidence": f"Contains {allergen_key.title()}"
+                })
+        
+        return {
+            "verdict": verdict,
+            "summary": summary,
+            "detail": detail,
+            "allergens": allergens,
+            "dietary_flags": {
+                "is_halal": None,  # Cannot determine from OCR alone
+                "is_vegan": not any(term in ocr_text.lower() for term in ["milk", "egg", "honey", "gelatin"]),
+                "is_infant_safe": not (is_infant and (contains_sugar or contains_salt))
+            },
+            "flags": [
+                flag for flag in [
+                    "Contains Added Sugar" if contains_sugar else None,
+                    "Contains Sodium" if contains_salt else None,
+                    "Contains Additives" if contains_additives else None,
+                    "Not Infant Safe" if is_infant and (contains_sugar or contains_salt) else None
+                ] if flag is not None
+            ]
+        }
+
+
+class OllamaLLMProvider(LLMProviderInterface):
+    """
+    Ollama LLM provider for local AI inference.
+    Connects to http://localhost:11434 by default.
+    """
+    
+    def __init__(self, model_name: str = "qwen2.5:7b-instruct-q4_K_M", base_url: str = "http://localhost:11434"):
+        self.model_name = model_name
+        self.base_url = base_url
+        self.llm = None
+        self.prompt_template = None
+        
+        if _import_langchain() and Ollama is not None and PromptTemplate is not None:
+            try:
+                self.llm = Ollama(
+                    model=model_name,
+                    base_url=base_url,
+                    temperature=0.3,
+                    timeout=60
+                )
+                
+                # Test connection
+                test_response = self.llm.invoke("Hello")
+                logger.info(f"OllamaLLMProvider initialized: {model_name}")
+                
+                # Setup prompt template
+                self.prompt_template = PromptTemplate(
+                    input_variables=["ocr_text", "user_age_months", "dietary_restrictions", "regulations"],
+                    template="""You are a food safety expert analyzing a product label for health impact.
+
+PRODUCT LABEL TEXT:
+{ocr_text}
+
+USER CONTEXT:
+- Age: {user_age_months} months old
+- Dietary Restrictions: {dietary_restrictions}
+
+RELEVANT REGULATIONS:
+{regulations}
+
+TASK: Analyze this product and provide a structured health assessment.
+
+OUTPUT FORMAT (JSON):
+{{
+    "verdict": "excellent|good|fair|poor|hazardous",
+    "short_summary": "One sentence summary (max 150 chars)",
+    "detailed_analysis": "Detailed explanation with regulatory citations",
+    "allergens": [
+        {{"substance": "name", "severity": "high|medium|low", "evidence": "where found in label"}}
+    ],
+    "is_halal": true|false|null,
+    "is_vegan": true|false,
+    "is_infant_safe": true|false,
+    "dietary_flags": ["flag1", "flag2"]
+}}
+
+CRITICAL RULES:
+1. For infants (<12 months), flag ANY added sugar, salt, or honey as hazardous
+2. Cite specific regulations in detailed_analysis
+3. Identify ALL allergens (milk, wheat, soy, nuts, eggs, fish, shellfish)
+4. Check for artificial additives and provide E-codes where applicable
+
+Respond ONLY with valid JSON, no additional text."""
+                )
+                
+            except Exception as e:
+                logger.error(f"Failed to initialize Ollama: {e}")
+                self.llm = None
+        else:
+            logger.warning("LangChain or Ollama not available")
+    
+    def is_available(self) -> bool:
+        return self.llm is not None
+    
+    def generate_analysis(self, ocr_text: str, user_profile: Dict, regulations: List[Dict]) -> Dict:
+        """Generate analysis using Ollama."""
+        if not self.is_available():
+            raise Exception("Ollama LLM not available")
+        
+        try:
+            # Prepare inputs
+            user_age_months = user_profile.get("age_months", 24)
+            dietary_restrictions = ", ".join(user_profile.get("dietary_restrictions", []))
+            
+            # Format regulations for prompt
+            reg_text = "\n".join([
+                f"- {reg['source']}: {reg['content']} (ID: {reg['id']})"
+                for reg in regulations[:3]  # Top 3 most relevant
+            ])
+            
+            # Create chain and run
+            from langchain.chains import LLMChain
+            chain = LLMChain(llm=self.llm, prompt=self.prompt_template)
+            
+            response = chain.run(
+                ocr_text=ocr_text,
+                user_age_months=user_age_months,
+                dietary_restrictions=dietary_restrictions or "None",
+                regulations=reg_text
+            )
+            
+            # Parse JSON response
+            analysis = json.loads(response.strip())
+            
+            logger.info(f"Ollama analysis generated: {analysis['verdict']}")
+            return self._format_analysis(analysis)
+            
+        except Exception as e:
+            logger.error(f"Ollama analysis failed: {e}")
+            raise
+    
+    def _format_analysis(self, llm_output: Dict) -> Dict:
+        """Format LLM output to match expected structure."""
+        return {
+            "verdict": llm_output.get("verdict", "fair"),
+            "summary": llm_output.get("short_summary", "Product analysis completed"),
+            "detail": llm_output.get("detailed_analysis", ""),
+            "allergens": llm_output.get("allergens", []),
+            "dietary_flags": {
+                "is_halal": llm_output.get("is_halal"),
+                "is_vegan": llm_output.get("is_vegan", False),
+                "is_infant_safe": llm_output.get("is_infant_safe", True)
+            },
+            "flags": llm_output.get("dietary_flags", [])
+        }
+
+
+class OpenAILLMProvider(LLMProviderInterface):
+    """
+    OpenAI LLM provider for cloud-based AI inference.
+    Uses GPT models via OpenAI API.
+    """
+    
+    def __init__(self, api_key: str = None, model: str = "gpt-4o-mini"):
+        self.api_key = api_key or os.getenv("OPENAI_API_KEY")
+        self.model = model
+        self.client = None
+        
+        if _import_openai() and self.api_key:
+            try:
+                self.client = openai.OpenAI(api_key=self.api_key)
+                
+                # Test connection
+                response = self.client.chat.completions.create(
+                    model=model,
+                    messages=[{"role": "user", "content": "Hello"}],
+                    max_tokens=10
+                )
+                logger.info(f"OpenAILLMProvider initialized: {model}")
+                
+            except Exception as e:
+                logger.error(f"Failed to initialize OpenAI: {e}")
+                self.client = None
+        else:
+            logger.warning("OpenAI not available or API key missing")
+    
+    def is_available(self) -> bool:
+        return self.client is not None
+    
+    def generate_analysis(self, ocr_text: str, user_profile: Dict, regulations: List[Dict]) -> Dict:
+        """Generate analysis using OpenAI."""
+        if not self.is_available():
+            raise Exception("OpenAI not available")
+        
+        try:
+            user_age_months = user_profile.get("age_months", 24)
+            dietary_restrictions = ", ".join(user_profile.get("dietary_restrictions", []))
+            
+            reg_text = "\n".join([
+                f"- {reg['source']}: {reg['content']} (ID: {reg['id']})"
+                for reg in regulations[:3]
+            ])
+            
+            prompt = f"""You are a food safety expert analyzing a product label.
+
+PRODUCT LABEL TEXT:
+{ocr_text}
+
+USER CONTEXT:
+- Age: {user_age_months} months old
+- Dietary Restrictions: {dietary_restrictions}
+
+RELEVANT REGULATIONS:
+{reg_text}
+
+Analyze this product and provide a JSON response with:
+- verdict: excellent|good|fair|poor|hazardous
+- short_summary: One sentence (max 150 chars)
+- detailed_analysis: Full explanation with citations
+- allergens: Array of {{substance, severity, evidence}}
+- is_halal: true|false|null
+- is_vegan: true|false
+- is_infant_safe: true|false
+- dietary_flags: Array of strings
+
+For infants <12 months, flag sugar/salt as hazardous. Respond only with valid JSON."""
+
+            response = self.client.chat.completions.create(
+                model=self.model,
+                messages=[
+                    {"role": "system", "content": "You are a food safety expert. Respond only with valid JSON."},
+                    {"role": "user", "content": prompt}
+                ],
+                temperature=0.3,
+                max_tokens=2000
+            )
+            
+            analysis = json.loads(response.choices[0].message.content)
+            logger.info(f"OpenAI analysis generated: {analysis['verdict']}")
+            return self._format_analysis(analysis)
+            
+        except Exception as e:
+            logger.error(f"OpenAI analysis failed: {e}")
+            raise
+    
+    def _format_analysis(self, llm_output: Dict) -> Dict:
+        """Format LLM output to match expected structure."""
+        return {
+            "verdict": llm_output.get("verdict", "fair"),
+            "summary": llm_output.get("short_summary", "Product analysis completed"),
+            "detail": llm_output.get("detailed_analysis", ""),
+            "allergens": llm_output.get("allergens", []),
+            "dietary_flags": {
+                "is_halal": llm_output.get("is_halal"),
+                "is_vegan": llm_output.get("is_vegan", False),
+                "is_infant_safe": llm_output.get("is_infant_safe", True)
+            },
+            "flags": llm_output.get("dietary_flags", [])
+        }
+
+
+class LLMProviderFactory:
+    """
+    Factory class for creating LLM providers based on configuration.
+    Supports mock, ollama, and openai providers.
+    """
+    
+    @staticmethod
+    def create_provider(provider_type: str = None) -> LLMProviderInterface:
+        """
+        Create an LLM provider based on the LLM_PROVIDER environment variable.
+        
+        Args:
+            provider_type: Override for provider type (mock, ollama, openai)
+            
+        Returns:
+            LLMProviderInterface instance
+        """
+        provider_type = provider_type or os.getenv("LLM_PROVIDER", "mock").lower()
+        
+        logger.info(f"Creating LLM provider: {provider_type}")
+        
+        if provider_type == "ollama":
+            provider = OllamaLLMProvider()
+            if provider.is_available():
+                return provider
+            else:
+                logger.warning("Ollama not available, falling back to mock")
+                return MockLLMProvider()
+        
+        elif provider_type == "openai":
+            provider = OpenAILLMProvider()
+            if provider.is_available():
+                return provider
+            else:
+                logger.warning("OpenAI not available, falling back to mock")
+                return MockLLMProvider()
+        
+        elif provider_type == "mock":
+            return MockLLMProvider()
+        
+        else:
+            logger.warning(f"Unknown provider type: {provider_type}, falling back to mock")
+            return MockLLMProvider()
+
+
+class RAGProviderFactory:
+    """
+    Factory class for creating RAG providers based on configuration.
+    Supports mock and pinecone providers.
+    """
+    
+    @staticmethod
+    def create_provider(enable_rag: bool = None) -> RAGServiceInterface:
+        """
+        Create a RAG provider based on the ENABLE_RAG environment variable.
+        
+        Args:
+            enable_rag: Override for RAG enablement
+            
+        Returns:
+            RAGServiceInterface instance
+        """
+        enable_rag = enable_rag if enable_rag is not None else os.getenv("ENABLE_RAG", "false").lower() == "true"
+        
+        if enable_rag and os.getenv("PINECONE_API_KEY"):
+            logger.info("Creating Pinecone RAG provider")
+            try:
+                # Use the existing VectorDatabase class as Pinecone provider
+                return VectorDatabase()
+            except Exception as e:
+                logger.error(f"Failed to create Pinecone provider: {e}")
+                logger.info("Falling back to MockRAGService")
+                return MockRAGService()
+        else:
+            logger.info("Creating Mock RAG provider")
+            return MockRAGService()
+
+
+class VectorDatabase(RAGServiceInterface):
     """
     Production RAG system using Pinecone for regulatory knowledge retrieval.
     
@@ -254,7 +825,10 @@ class LLMAgent:
         self.model_name = model_name
         self.temperature = temperature
         
-        if Ollama is None:
+        # Try to import LangChain components
+        langchain_available = _import_langchain()
+        
+        if not langchain_available or Ollama is None:
             logger.warning("LangChain/Ollama not available, using mock mode")
             self.llm = None
             self.use_mock = True
@@ -279,9 +853,10 @@ class LLMAgent:
                 self.use_mock = True
         
         # Define prompt template for health analysis
-        self.analysis_prompt = PromptTemplate(
-            input_variables=["ocr_text", "user_age_months", "dietary_restrictions", "regulations"],
-            template="""You are a food safety expert analyzing a product label for health impact.
+        if PromptTemplate is not None:
+            self.analysis_prompt = PromptTemplate(
+                input_variables=["ocr_text", "user_age_months", "dietary_restrictions", "regulations"],
+                template="""You are a food safety expert analyzing a product label for health impact.
 
 PRODUCT LABEL TEXT:
 {ocr_text}
@@ -316,7 +891,10 @@ CRITICAL RULES:
 4. Check for artificial additives and provide E-codes where applicable
 
 Respond ONLY with valid JSON, no additional text."""
-        )
+            )
+        else:
+            self.analysis_prompt = None
+            logger.warning("PromptTemplate not available, using mock mode")
     
     def generate_analysis(
         self, 
@@ -450,7 +1028,7 @@ class NutriScanPipeline:
         performance_target_seconds: float = 4.0
     ):
         """
-        Initialize pipeline with all AI components.
+        Initialize pipeline with all AI components using factory pattern.
         
         Args:
             ocr_confidence_threshold: Minimum OCR confidence (0.0-1.0)
@@ -472,26 +1050,25 @@ class NutriScanPipeline:
             logger.error(f"Failed to initialize OCR: {e}")
             self.ocr = None
         
+        # Initialize RAG Service using factory
         try:
-            # Initialize Vector Database
-            self.db = VectorDatabase()
-            logger.info("VectorDatabase initialized")
-            
+            self.rag_service = RAGProviderFactory.create_provider()
+            logger.info(f"RAG service initialized: {type(self.rag_service).__name__}")
         except Exception as e:
-            logger.error(f"Failed to initialize VectorDB: {e}")
-            self.db = None
+            logger.error(f"Failed to initialize RAG service: {e}")
+            self.rag_service = MockRAGService()
         
+        # Initialize LLM Provider using factory
         try:
-            # Initialize LLM Agent
-            self.agent = LLMAgent(
-                model_name="qwen2.5:7b-instruct-q4_K_M",
-                temperature=0.3
-            )
-            logger.info("LLMAgent initialized")
-            
+            self.llm_provider = LLMProviderFactory.create_provider()
+            logger.info(f"LLM provider initialized: {type(self.llm_provider).__name__}")
         except Exception as e:
-            logger.error(f"Failed to initialize LLM: {e}")
-            self.agent = None
+            logger.error(f"Failed to initialize LLM provider: {e}")
+            self.llm_provider = MockLLMProvider()
+        
+        # Backward compatibility - keep old attributes for existing code
+        self.db = self.rag_service
+        self.agent = None  # Deprecated, use self.llm_provider instead
     
     def process_scan(self, image_path: str, user_profile: Dict) -> Dict:
         """
@@ -533,10 +1110,7 @@ class NutriScanPipeline:
             rag_start = time.time()
             
             region = user_profile.get("region", "Global")
-            if self.db:
-                regulations = self.db.search_regulations(search_terms, region, top_k=5)
-            else:
-                regulations = self._get_fallback_regulations()
+            regulations = self.rag_service.search_regulations(search_terms, region, top_k=5)
             
             rag_time = time.time() - rag_start
             logger.info(f"RAG search completed in {rag_time:.2f}s ({len(regulations)} docs)")
@@ -545,10 +1119,7 @@ class NutriScanPipeline:
             logger.info("Step 4: Generating LLM health analysis...")
             llm_start = time.time()
             
-            if self.agent:
-                analysis = self.agent.generate_analysis(raw_text, user_profile, regulations)
-            else:
-                analysis = self._get_fallback_analysis(raw_text, user_profile)
+            analysis = self.llm_provider.generate_analysis(raw_text, user_profile, regulations)
             
             llm_time = time.time() - llm_start
             logger.info(f"LLM analysis completed in {llm_time:.2f}s (verdict: {analysis['verdict']})")
@@ -564,6 +1135,48 @@ class NutriScanPipeline:
             suggestions = self._generate_suggestions(analysis, user_profile)
             
             # Step 8: Construct final response
+            total_time_ms = int((time.time() - start_time) * 1000)
+            
+            # Map verdict to traffic light color
+            verdict_to_traffic_light = {
+                "excellent": "green",
+                "good": "green",
+                "fair": "yellow",
+                "poor": "red",
+                "hazardous": "red"
+            }
+            traffic_light = verdict_to_traffic_light.get(analysis["verdict"], "yellow")
+            
+            # Generate "why" explanation
+            why_text = f"{analysis['summary']} "
+            if parsed_ingredients:
+                risk_ingredients = [ing["name"] for ing in parsed_ingredients if ing["risk_level"] in ["avoid", "caution"]]
+                if risk_ingredients:
+                    why_text += f"Contains {', '.join(risk_ingredients[:3])} which require caution."
+            
+            # Separate better_swaps from general suggestions
+            better_swaps = [s for s in suggestions if s.get("type") == "swap"]
+            
+            # Format citations (same as sources but with more detail)
+            citations = [
+                {
+                    "authority": reg["source"],
+                    "doc_id": reg["id"],
+                    "url": reg.get("url", ""),
+                    "excerpt": reg.get("content", "")[:200]  # First 200 chars
+                }
+                for reg in regulations
+            ]
+            
+            # Generate regulatory_flags if needed
+            regulatory_flags = []
+            if analysis["verdict"] in ["poor", "hazardous"]:
+                regulatory_flags.append({
+                    "regulation": "General Food Safety Standards",
+                    "severity": "warning",
+                    "description": "Product contains ingredients that may not meet optimal health standards."
+                })
+            
             response = {
                 "scan_id": str(uuid.uuid4()),
                 "timestamp": datetime.now().isoformat(),
@@ -574,6 +1187,7 @@ class NutriScanPipeline:
                     "region": region
                 },
                 "ocr_raw_text": raw_text.strip(),
+                "ocr_confidence": ocr_confidence,
                 "parsed_ingredients": parsed_ingredients,
                 "nutrition_facts": nutrition_facts,
                 "allergen_alerts": analysis["allergens"],
@@ -588,6 +1202,10 @@ class NutriScanPipeline:
                     "short_summary": analysis["summary"],
                     "detailed_analysis": analysis["detail"]
                 },
+                "traffic_light": traffic_light,
+                "why": why_text.strip(),
+                "citations": citations,
+                "better_swaps": better_swaps,
                 "suggestions": suggestions,
                 "sources": [
                     {
@@ -596,7 +1214,9 @@ class NutriScanPipeline:
                         "url": reg.get("url", "")
                     }
                     for reg in regulations
-                ]
+                ],
+                "latency_ms": total_time_ms,
+                "regulatory_flags": regulatory_flags
             }
             
             # Performance monitoring
@@ -827,21 +1447,28 @@ class NutriScanPipeline:
                 "region": "Global"
             },
             "ocr_raw_text": f"Error: {error_message}",
+            "ocr_confidence": 0.0,
             "parsed_ingredients": [],
-            "nutrition_facts": {},
+            "nutrition_facts": None,
             "allergen_alerts": [],
-            "dietary_compliance": {
-                "is_halal": None,
-                "is_vegan": None,
-                "is_infant_safe": None,
-                "flags": []
-            },
+            "dietary_compliance": None,
             "health_impact_summary": {
-                "verdict": "fair",
+                "verdict": "hazardous",
                 "short_summary": "Unable to process image",
-                "detailed_analysis": f"An error occurred during processing: {error_message}"
+                "detailed_analysis": f"An error occurred during processing: {error_message}. Please retake the photo with better lighting and ensure the label is clearly visible."
             },
-            "suggestions": [],
-            "sources": []
+            "traffic_light": "red",
+            "why": "Cannot verify product safety due to processing error.",
+            "citations": [],
+            "better_swaps": [],
+            "suggestions": [
+                {
+                    "type": "usage_tip",
+                    "reason": "Retake photo in good lighting with ingredients list clearly visible"
+                }
+            ],
+            "sources": [],
+            "latency_ms": 0,
+            "regulatory_flags": []
         }
 

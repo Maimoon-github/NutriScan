@@ -123,7 +123,7 @@ class ScanAnalyzeView(APIView):
         if not input_serializer.is_valid():
             return Response(
                 {
-                    "error": "Invalid input",
+                    "error": "validation_error",
                     "details": input_serializer.errors
                 },
                 status=status.HTTP_400_BAD_REQUEST
@@ -131,18 +131,50 @@ class ScanAnalyzeView(APIView):
         
         # 2. Extract validated data
         image_file = input_serializer.validated_data['image']
-        user_profile = input_serializer.validated_data.get('user_profile', {})
+        # Prefer 'profile' field; fallback to 'user_profile'
+        user_profile = input_serializer.validated_data.get('profile') or input_serializer.validated_data.get('user_profile') or {}
+
+        # Server-side file size enforcement (10MB)
+        try:
+            size_bytes = getattr(image_file, 'size', None)
+            if size_bytes is not None and size_bytes > 10 * 1024 * 1024:
+                return Response(
+                    {
+                        "error": "validation_error",
+                        "details": {"image": ["File size must be ≤ 10MB"]}
+                    },
+                    status=status.HTTP_400_BAD_REQUEST
+                )
+        except Exception:
+            pass
         
         # 3. Process through pipeline
         try:
             pipeline = NutriScanPipeline()
             
-            # Save image temporarily (Phase 2: might upload to S3)
-            image_path = image_file.temporary_file_path() if hasattr(image_file, 'temporary_file_path') else None
+            # Get image path - handle both temporary files and in-memory uploads
+            if hasattr(image_file, 'temporary_file_path'):
+                # File is large enough to be stored on disk
+                image_path = image_file.temporary_file_path()
+            else:
+                # File is in memory - save it temporarily
+                import tempfile
+                import os
+                
+                # Create temp file with proper extension
+                file_extension = os.path.splitext(image_file.name)[1] or '.jpg'
+                temp_file = tempfile.NamedTemporaryFile(delete=False, suffix=file_extension)
+                
+                # Write uploaded file to temp location
+                for chunk in image_file.chunks():
+                    temp_file.write(chunk)
+                temp_file.close()
+                
+                image_path = temp_file.name
             
             # Run analysis
             analysis_result = pipeline.process_scan(
-                image_path=image_path or str(image_file),
+                image_path=image_path,
                 user_profile=user_profile
             )
             
@@ -155,7 +187,8 @@ class ScanAnalyzeView(APIView):
                 # Internal error - our pipeline returned invalid data
                 return Response(
                     {
-                        "error": "Internal processing error",
+                        "error": "pipeline_error",
+                        "message": "Pipeline returned invalid data",
                         "details": response_serializer.errors
                     },
                     status=status.HTTP_500_INTERNAL_SERVER_ERROR
@@ -165,7 +198,7 @@ class ScanAnalyzeView(APIView):
             # Catch any unexpected errors
             return Response(
                 {
-                    "error": "Processing failed",
+                    "error": "pipeline_error",
                     "message": str(e)
                 },
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR

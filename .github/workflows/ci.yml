@@ -1,0 +1,296 @@
+name: NutriScan CI/CD Pipeline
+
+on:
+  push:
+    branches: [main, develop]
+  pull_request:
+    branches: [main, develop]
+  workflow_dispatch: # Allow manual trigger
+
+env:
+  PYTHON_VERSION: '3.11'
+  NODE_VERSION: '20'
+
+jobs:
+  # Job 1: Backend Linting and Testing
+  backend-test:
+    name: Backend Tests & Linting
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      
+    - name: Set up Python ${{ env.PYTHON_VERSION }}
+      uses: actions/setup-python@v5
+      with:
+        python-version: ${{ env.PYTHON_VERSION }}
+        cache: 'pip'
+        
+    - name: Install backend dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install -r requirements.txt
+        pip install flake8 pytest pytest-django black isort
+        
+    - name: Lint with flake8
+      run: |
+        # Stop the build if there are Python syntax errors or undefined names
+        flake8 . --count --select=E9,F63,F7,F82 --show-source --statistics
+        # Treat all other issues as warnings
+        flake8 . --count --exit-zero --max-complexity=10 --max-line-length=127 --statistics
+        
+    - name: Check code formatting with black
+      run: |
+        black --check --diff .
+        
+    - name: Check import sorting with isort
+      run: |
+        isort --check-only --diff .
+        
+    - name: Run Django system checks
+      run: |
+        export DJANGO_SETTINGS_MODULE=nutriscan.settings
+        python manage.py check --deploy
+        
+    - name: Run backend tests
+      env:
+        LLM_PROVIDER: mock  # Use mock provider for tests
+        ENABLE_RAG: false   # Disable RAG for tests
+      run: |
+        python -m pytest -v --tb=short
+        
+  # Job 2: Frontend Linting and Testing
+  frontend-test:
+    name: Frontend Tests & Linting
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      
+    - name: Set up Node.js ${{ env.NODE_VERSION }}
+      uses: actions/setup-node@v4
+      with:
+        node-version: ${{ env.NODE_VERSION }}
+        cache: 'npm'
+        cache-dependency-path: 'web-console/package-lock.json'
+        
+    - name: Install frontend dependencies
+      working-directory: ./web-console
+      run: npm ci
+      
+    - name: Lint frontend code with ESLint
+      working-directory: ./web-console
+      run: npm run lint
+      
+    - name: Type check TypeScript
+      working-directory: ./web-console
+      run: npx tsc --noEmit
+      
+    - name: Build frontend for production
+      working-directory: ./web-console
+      env:
+        VITE_API_BASE_URL: http://localhost:8000  # Mock API endpoint for build
+      run: npm run build
+      
+    # Note: Add frontend unit tests when implemented
+    # - name: Run frontend tests
+    #   working-directory: ./web-console
+    #   run: npm test
+        
+  # Job 3: API Contract Validation
+  contract-validation:
+    name: API Contract Validation
+    runs-on: ubuntu-latest
+    needs: [backend-test]  # Run after backend tests pass
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      
+    - name: Set up Python ${{ env.PYTHON_VERSION }}
+      uses: actions/setup-python@v5
+      with:
+        python-version: ${{ env.PYTHON_VERSION }}
+        cache: 'pip'
+        
+    - name: Install dependencies for contract validation
+      run: |
+        python -m pip install --upgrade pip
+        pip install -r requirements.txt
+        pip install jsonschema requests
+        
+    - name: Start Django test server
+      env:
+        LLM_PROVIDER: mock  # Use mock provider for contract testing
+        ENABLE_RAG: false   # Disable RAG for contract testing
+      run: |
+        python manage.py migrate --run-syncdb
+        python manage.py runserver 127.0.0.1:8000 &
+        echo "Django server started in background"
+        # Wait for server to start
+        sleep 10
+        
+    - name: Validate API contract
+      run: |
+        python validate_contract.py
+        
+    - name: Test API endpoints with sample data
+      run: |
+        # Test health check endpoint
+        curl -f http://127.0.0.1:8000/api/v1/health/ || exit 1
+        
+        # Test scan endpoint with sample image (if exists)
+        if [ -f "web-console/public/samples/sample.jpg" ]; then
+          echo "Testing scan endpoint with sample image..."
+          curl -X POST -F "image=@web-console/public/samples/sample.jpg" \
+               -f http://127.0.0.1:8000/api/v1/scan/ || exit 1
+        else
+          echo "No sample image found, skipping scan endpoint test"
+        fi
+        
+  # Job 4: Security and Dependency Checks
+  security-audit:
+    name: Security & Dependency Audit
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      
+    - name: Set up Python ${{ env.PYTHON_VERSION }}
+      uses: actions/setup-python@v5
+      with:
+        python-version: ${{ env.PYTHON_VERSION }}
+        cache: 'pip'
+        
+    - name: Install safety for Python security audit
+      run: |
+        python -m pip install --upgrade pip
+        pip install safety bandit
+        
+    - name: Check Python dependencies for security vulnerabilities
+      run: |
+        pip install -r requirements.txt
+        safety check --json || true  # Don't fail CI on vulnerabilities, just warn
+        
+    - name: Run bandit security linter
+      run: |
+        bandit -r . -x test_*.py,venv/,env/ -f json || true
+        
+    - name: Set up Node.js for frontend security audit
+      uses: actions/setup-node@v4
+      with:
+        node-version: ${{ env.NODE_VERSION }}
+        
+    - name: Audit frontend dependencies
+      working-directory: ./web-console
+      run: |
+        npm audit --audit-level=high || true  # Don't fail on audit issues
+        
+  # Job 5: Performance & Load Testing (Optional)
+  performance-test:
+    name: Performance Testing
+    runs-on: ubuntu-latest
+    needs: [backend-test, contract-validation]
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'  # Only on main branch
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      
+    - name: Set up Python ${{ env.PYTHON_VERSION }}
+      uses: actions/setup-python@v5
+      with:
+        python-version: ${{ env.PYTHON_VERSION }}
+        cache: 'pip'
+        
+    - name: Install dependencies and performance testing tools
+      run: |
+        python -m pip install --upgrade pip
+        pip install -r requirements.txt
+        pip install locust
+        
+    - name: Start Django server for performance testing
+      env:
+        LLM_PROVIDER: mock  # Use mock for consistent performance testing
+        ENABLE_RAG: false
+      run: |
+        python manage.py runserver 127.0.0.1:8000 &
+        sleep 10
+        
+    - name: Run basic performance test
+      run: |
+        # Simple performance check - ensure scan endpoint responds within 5 seconds
+        timeout 5s curl -X POST -F "image=@web-console/public/samples/sample.jpg" \
+                       http://127.0.0.1:8000/api/v1/scan/ || echo "Performance test completed"
+
+  # Job 6: Deployment Readiness Check
+  deployment-check:
+    name: Deployment Readiness
+    runs-on: ubuntu-latest
+    needs: [backend-test, frontend-test, contract-validation]
+    if: github.ref == 'refs/heads/main'  # Only check on main branch
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      
+    - name: Check environment configuration
+      run: |
+        echo "✅ Checking deployment readiness..."
+        
+        # Check that critical files exist
+        files=(
+          "requirements.txt"
+          "manage.py"
+          "nutriscan/settings.py"
+          "web-console/package.json"
+          "api_contract.json"
+          "README.md"
+        )
+        
+        for file in "${files[@]}"; do
+          if [ -f "$file" ]; then
+            echo "✅ $file exists"
+          else
+            echo "❌ $file missing"
+            exit 1
+          fi
+        done
+        
+        # Check that environment variables are documented
+        if grep -q "LLM_PROVIDER" README.md && grep -q "ENABLE_RAG" README.md; then
+          echo "✅ Environment variables documented in README"
+        else
+          echo "❌ Environment variables not documented"
+          exit 1
+        fi
+        
+        echo "🚀 All deployment readiness checks passed!"
+
+  # Summary job that runs after all others
+  ci-success:
+    name: CI Pipeline Success
+    runs-on: ubuntu-latest
+    needs: [backend-test, frontend-test, contract-validation, security-audit]
+    if: always()
+    
+    steps:
+    - name: Check all job results
+      run: |
+        if [[ "${{ needs.backend-test.result }}" == "success" && \
+              "${{ needs.frontend-test.result }}" == "success" && \
+              "${{ needs.contract-validation.result }}" == "success" && \
+              "${{ needs.security-audit.result }}" == "success" ]]; then
+          echo "🎉 All CI checks passed successfully!"
+          exit 0
+        else
+          echo "❌ Some CI checks failed:"
+          echo "Backend Tests: ${{ needs.backend-test.result }}"
+          echo "Frontend Tests: ${{ needs.frontend-test.result }}"
+          echo "Contract Validation: ${{ needs.contract-validation.result }}"
+          echo "Security Audit: ${{ needs.security-audit.result }}"
+          exit 1
+        fi

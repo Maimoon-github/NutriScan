@@ -18,7 +18,7 @@ Read [](file:///c%3A/Users/CreativePC/Documents/vscode/NutriScan/analyzer/servic
 
 Read [](file:///c%3A/Users/CreativePC/Documents/vscode/NutriScan/analyzer/services/pipeline.py)
 
-Read [](file:///c%3A/Users/CreativePC/Documents/vscode/NutriScan/api_contrack.json)
+Read [](file:///c%3A/Users/CreativePC/Documents/vscode/NutriScan/api_contract.json)
 
 Read [](file:///c%3A/Users/CreativePC/Documents/vscode/NutriScan/test_api.py)
 
@@ -64,7 +64,7 @@ Build a mobile-first MVP focused on the scan-to-answer flow, integrating with th
 **1) What to do next, why it matters, and how to do it**
 
 - Finalize API Contract
-  - What: Lock request/response for `/api/v1/scan/`; fix api_contrack.json filename typo; document fields the UI must render.
+  - What: Lock request/response for `/api/v1/scan/`; fix api_contract.json filename typo; document fields the UI must render.
   - Why: Prevent breaking UI; align fields like `traffic_light`, `why`, `citations`, `better_swaps`, `ingredients`, `allergens`, `ocr_confidence`, `latency_ms`.
   - How: Validate the serializer contract in serializers.py; rename the JSON contract file to match; add 2–3 example responses (success/partial/unreadable).
 
@@ -119,9 +119,8 @@ Build a mobile-first MVP focused on the scan-to-answer flow, integrating with th
   - CORS: leave open in dev; tighten in prod via `django-cors-headers`.
 
 - AI/Infra (Free or near-free paths)
-  - LLM: Local `ollama` for demos; or hosted small model when needed.
-  - Vector DB: Skip for MVP; use mocked RAG (already supported). Later: Pinecone free tier or Weaviate Cloud Sandbox.
-  - Hosting: Railway/Render free tiers for API; Cloudflare R2 or Cloudinary free tier for images (optional).
+  - LLM: Local `ollama` model.
+  - Vector DB: Skip for MVP; use mocked RAG (already supported). Later: Pinecone free tier.
   - Analytics/Errors: PostHog Community (product analytics), Sentry free (crash/reporting).
   - CI/CD: GitHub Actions.
 
